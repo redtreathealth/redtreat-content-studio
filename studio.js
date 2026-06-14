@@ -51,19 +51,37 @@ const SCHEMA = {
   required: ['kicker', 'headline', 'sub', 'imagePrompt', 'cta', 'scoreValue'],
 };
 
+// Marken-Vorlage, falls Google (Director) nicht verfügbar ist (z.B. Quota) → Tool läuft trotzdem.
+function fallbackBrief(briefText) {
+  return {
+    kicker: 'longevity in motion',
+    headline: ['dein moment.', 'dein tempo.'],
+    sub: 'Premium Wellness, designed in Switzerland.',
+    imagePrompt: 'Cinematic luxury editorial photograph for a premium Swiss wellness brand. Theme: '
+      + String(briefText || 'longevity & wellness').slice(0, 150)
+      + '. Soft natural light, warm premium materials, calm and aspirational, 35mm film look, subject in the lower half OR no person, large bright empty space at the top for text, photorealistic, editorial. natural correct human anatomy, both legs visible. fully clothed, modest, no nudity, no bare skin.',
+    cta: 'jetzt entdecken.', scoreValue: 90,
+  };
+}
+
 async function director(briefText, env) {
-  const key = env.GEMINI_API_KEY; if (!key) throw new Error('GEMINI_API_KEY fehlt');
   const refs = fs.existsSync(REFS) ? fs.readdirSync(REFS).filter(f => /\.(png|jpe?g|webp)$/i.test(f)) : [];
-  const parts = [];
-  refs.forEach(f => { const b = fs.readFileSync(path.join(REFS, f)); parts.push({ text: `Referenz ${f}:` }); parts.push({ inline_data: { mime_type: mimeOf(b), data: b.toString('base64') } }); });
-  parts.push({ text: `${refs.length ? 'Oben die Referenzbilder. ' : ''}Wunsch/Brief: "${briefText}". Liefere EINEN Anzeigen-Brief als JSON.` });
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.TEXT_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 1.0 } }),
-  });
-  if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 160)}`);
-  const j = await r.json();
-  return { d: JSON.parse(j.candidates[0].content.parts.find(p => p.text).text), refCount: refs.length };
+  try {
+    const key = env.GEMINI_API_KEY; if (!key) throw new Error('GEMINI_API_KEY fehlt');
+    const parts = [];
+    refs.forEach(f => { const b = fs.readFileSync(path.join(REFS, f)); parts.push({ text: `Referenz ${f}:` }); parts.push({ inline_data: { mime_type: mimeOf(b), data: b.toString('base64') } }); });
+    parts.push({ text: `${refs.length ? 'Oben die Referenzbilder. ' : ''}Wunsch/Brief: "${briefText}". Liefere EINEN Anzeigen-Brief als JSON.` });
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.TEXT_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 1.0 } }),
+    });
+    if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 120)}`);
+    const j = await r.json();
+    return { d: JSON.parse(j.candidates[0].content.parts.find(p => p.text).text), refCount: refs.length };
+  } catch (e) {
+    console.warn('   ⚠️  Creative Director (Google) nicht verfügbar: ' + e.message.slice(0, 70) + ' — nutze Marken-Vorlage.');
+    return { d: fallbackBrief(briefText), refCount: refs.length };
+  }
 }
 
 function makeReel(adPng, outMp4, mode) {
