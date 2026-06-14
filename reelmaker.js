@@ -28,14 +28,14 @@ function buildReelHTML(c) {
  .kick{position:absolute;top:980px;left:64px;color:${CR};font-size:24px;letter-spacing:7px;text-transform:uppercase;font-weight:600}
  .h1{position:absolute;top:1020px;left:60px;right:80px;color:${CR};font-family:'Cabin';font-size:118px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase}
  .h1 .r{color:${R}}
- .glow{position:absolute;inset:0;background:radial-gradient(60% 40% at 50% 36%,rgba(225,6,0,.18),transparent 70%)}
+ .glow{position:absolute;inset:0;background:radial-gradient(60% 40% at 50% 36%,rgba(224,37,44,.18),transparent 70%)}
  .phone{position:absolute;left:50%;bottom:300px;width:470px;height:1016px;transform:translateX(-50%);
    border-radius:52px;padding:14px;background:linear-gradient(150deg,#2b2b31,#0c0c0f 62%);box-shadow:0 60px 130px rgba(0,0,0,.7)}
  .screen{width:100%;height:100%;border-radius:40px;background:#000 top center/cover no-repeat;overflow:hidden}
  .cap{position:absolute;top:150px;left:0;right:0;text-align:center;color:${CR};font-family:'Cabin';font-size:74px;font-weight:700;letter-spacing:-2px;text-transform:lowercase}
  .phoneS{position:absolute;left:70px;bottom:360px;width:380px;height:822px;border-radius:44px;padding:12px;background:linear-gradient(150deg,#2b2b31,#0c0c0f 62%);box-shadow:0 50px 110px rgba(0,0,0,.7)}
  .chip{position:absolute;right:70px;display:flex;align-items:center;gap:16px;background:rgba(20,20,24,.85);border:1px solid rgba(255,255,255,.14);border-radius:22px;padding:22px 28px;color:${CR};font-size:33px;font-weight:600;box-shadow:0 24px 50px rgba(0,0,0,.5)}
- .chip i{width:14px;height:14px;border-radius:50%;background:${R};box-shadow:0 0 16px 4px rgba(225,6,0,.8)}
+ .chip i{width:14px;height:14px;border-radius:50%;background:${R};box-shadow:0 0 16px 4px rgba(224,37,44,.8)}
  .s3title{position:absolute;top:150px;left:0;right:0;text-align:center;color:${CR};font-family:'Cabin';font-size:64px;font-weight:700;text-transform:lowercase}
  .ring{position:absolute;left:50%;top:560px;transform:translateX(-50%);width:520px;height:520px}
  .s4num{position:absolute;left:0;right:0;top:680px;text-align:center;color:${CR};font-size:240px;font-weight:200;line-height:1}

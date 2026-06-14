@@ -8,11 +8,11 @@ module.exports = {
   origin: 'Designed in Switzerland', // NIE "Made in ..."
   established: 2024,
 
-  // --- Farben (offizielles Guideline) ---
+  // --- Farben (offizielles Guideline Issue 2026, Seite 08) ---
   colors: {
-    red:    '#E10600', // EIN Signal-Rot. Nie geflutet, ein dominanter Rot-Moment pro Layout.
+    red:    '#E0252C', // Signal Red — DER kanonische Marken-Rot (aus dem Logo). NICHT #E10600/#E53935 (alte, falsche Reds). Ein dominanter Rot-Moment pro Layout, nie geflutet.
     // Dunkles System (Primär-Canvas):
-    black:  '#000000', bgDark: '#07070A', ink: '#1A1B18', surface: '#141418', line: '#26262E',
+    black:  '#000000', bgDark: '#07070A', ink: '#1D1D1B', surface: '#141418', line: '#26262E',
     // Hell/Support (sparsam):
     cream:  '#FBF7F1', beige: '#EFE6DC', gold: '#B8841A', green: '#1F7A3A',
     // Score-Ring (Daten-Indikator, kein Marken-Rot):

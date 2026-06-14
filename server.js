@@ -62,7 +62,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
 <title>redtreat Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=Cabin:wght@500;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
- :root{--red:#E10600;--cream:#FBF7F1;--bg:#07070A;--surf:#141418;--line:#26262E}
+ :root{--red:#E0252C;--cream:#FBF7F1;--bg:#07070A;--surf:#141418;--line:#26262E}
  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;-webkit-font-smoothing:antialiased}
  .wrap{max-width:1000px;margin:0 auto;padding:40px 24px 80px}
  header{display:flex;align-items:center;gap:16px;margin-bottom:8px}

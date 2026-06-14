@@ -74,7 +74,7 @@ function buildHTML(brief) {
  .card .ch{display:flex;align-items:center;justify-content:space-between}
  .card .ch .lbl{color:rgba(251,247,241,.5);font-size:21px;letter-spacing:4px;font-weight:600}
  .card .ch .live{display:flex;align-items:center;gap:10px;color:${C.cream};font-size:21px;letter-spacing:2px;font-weight:700}
- .card .ch .live i{width:13px;height:13px;border-radius:50%;background:${C.red};box-shadow:0 0 15px 4px rgba(225,6,0,.9);display:block}
+ .card .ch .live i{width:13px;height:13px;border-radius:50%;background:${C.red};box-shadow:0 0 15px 4px rgba(224,37,44,.9);display:block}
  .card .sub{color:rgba(251,247,241,.72);font-size:25px;font-weight:500;margin-top:8px}
  .body{display:flex;align-items:center;gap:34px;margin-top:22px}
  .ring{position:relative;width:236px;height:236px;flex:0 0 236px}
@@ -89,7 +89,7 @@ function buildHTML(brief) {
  .two .v{color:${C.cream};font-size:48px;font-weight:300;line-height:1}
  .two .l{color:rgba(251,247,241,.5);font-size:19px;letter-spacing:1.5px;margin-top:6px}
  .cta{position:absolute;bottom:122px;left:0;right:0;text-align:center}
- .cta .pill{display:inline-flex;align-items:center;gap:14px;background:${C.red};color:#fff;font-size:31px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:25px 52px;border-radius:100px;box-shadow:0 24px 54px rgba(225,6,0,.5)}
+ .cta .pill{display:inline-flex;align-items:center;gap:14px;background:${C.red};color:#fff;font-size:31px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:25px 52px;border-radius:100px;box-shadow:0 24px 54px rgba(224,37,44,.5)}
  .store{position:absolute;bottom:76px;left:0;right:0;text-align:center;color:rgba(251,247,241,.62);font-size:21px;letter-spacing:3px;font-weight:500}
 </style></head><body>
  <div class="ad">
