@@ -39,7 +39,7 @@ Stimme: modern, quiet luxury, reduziert, evokativ. Bildsprache: editorial, cinem
 Dir werden REFERENZBILDER und ein Wunsch-Text gegeben. Analysiere die Referenzen (Motiv, Stil, Farbwelt, Licht, Komposition) + den Text und entwirf EINE neue Anzeige, die diese Bildwelt einfängt — als NEUES Bild, nicht kopiert.
 Harte Regeln: Display-Copy klein mit Punkt ("deine mitte."). KEINE Medizin-/Heilaussagen. Kein "Made in" (→ "Designed in Switzerland"). Nur EIN Rot. Established 2024.
 imagePrompt = akribischer art-directed Luxus-Editorial-FOTO-Prompt (Englisch): Licht, Objektiv, Filmlook, Color-Grade, Komposition (Subjekt untere Bildhälfte, oben heller leerer Raum), Styling; ende mit "photorealistic, editorial". KEINE Logos/Schrift im Bild. Zentriert, quadratisch-tauglich.
-ANATOMIE-SICHERHEIT: einfache klare Haltungen (stehend/sitzend/von hinten/enger Ausschnitt), keine Verrenkungen/verschränkten Gliedmaßen; beide Beine+Arme klar sichtbar ODER sauber angeschnitten; ende mit "natural correct human anatomy, both legs visible". GARDEROBE dezent & edel (kein Haut-Fokus), sonst blocken Filter.
+ANATOMIE-SICHERHEIT: einfache klare Haltungen (stehend/sitzend/von hinten/enger Ausschnitt), keine Verrenkungen/verschränkten Gliedmaßen; beide Beine+Arme klar sichtbar ODER sauber angeschnitten; ende mit "natural correct human anatomy, both legs visible". GARDEROBE: AUCH WENN Referenzbilder nackte Haut/Oberkörper zeigen — NIEMALS Nacktheit, Oberkörper oder Haut-Fokus beschreiben. Personen IMMER vollständig bekleidet (bei Sauna/Spa: Bademantel/Handtuch, Dampf, Holz) ODER Produkt/Szene ganz ohne Person. Sonst blockiert der Inhaltsfilter ALLES.
 Copy knapp: headline genau 2 Zeilen je 1–3 Wörter klein+Punkt; kicker 2–3 Wörter; sub EIN eleganter Satz (≤12 Wörter); cta 1–2 Wörter. scoreValue 80–96. Erfinde KEINE Messwerte.`;
 
 const SCHEMA = {
@@ -101,6 +101,12 @@ async function main() {
   const buffers = [];
   for (let i = 0; i < nCand; i++) { try { buffers.push(await generate(d.imagePrompt, null, fmt.w, fmt.h, env)); process.stdout.write('.'); } catch { process.stdout.write('x'); } }
   console.log('');
+  if (!buffers.length) {
+    console.log('⚠️  Alle Varianten blockiert — Fallback-Szene ohne Person …');
+    const safeScene = 'A serene premium wellness scene: warm wood, soft steam, calm editorial light, minimalist spa interior, no people, photorealistic, lots of empty space at the top';
+    for (let i = 0; i < Math.min(4, nCand); i++) { try { buffers.push(await generate(safeScene, null, fmt.w, fmt.h, env)); process.stdout.write('.'); } catch { process.stdout.write('x'); } }
+    console.log('');
+  }
   if (!buffers.length) { console.error('❌ Keine Bilder generiert'); process.exit(3); }
 
   const ranked = await qcRank(buffers, env);

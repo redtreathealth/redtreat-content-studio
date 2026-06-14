@@ -47,7 +47,9 @@ async function cloudflare(prompt, w, h, env) {
   // FLUX: nur {prompt, steps} (quadratisch 1024, beste Qualität). SDXL: width/height + num_steps.
   const isFlux = /flux/i.test(model);
   const d = portraitDims(w, h);
-  const body = isFlux ? { prompt, steps: 8 } : { prompt, width: d.width, height: d.height, num_steps: 20 };
+  // Sicherheits-Zusatz gegen NSFW-Blocks (Sauna/Body-Motive)
+  const safe = prompt + ', tasteful editorial, fully clothed, modest spa robe or towel, no nudity, no bare skin';
+  const body = isFlux ? { prompt: safe, steps: 8 } : { prompt: safe, width: d.width, height: d.height, num_steps: 20 };
   const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/${model}`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
