@@ -38,21 +38,30 @@ app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.ar
     if (!brief) return res.status(400).json({ error: 'Bitte einen Brief eingeben.' });
     clearDir(ADS); clearDir(REELS, /\.mp4$/); clearDir(path.join(ROOT, 'input', 'studio'));
 
+    const reelsFlag = (req.body.reels === '1' || req.body.reels === 'on') ? '1' : '0';
     const id = 'job_' + Date.now();
-    const j = jobs[id] = { stage: '⏳ Startet …', done: false, error: null, ads: [], reels: [], log: '' };
-    const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count)], { cwd: ROOT });
+    const j = jobs[id] = { stage: '⏳ Startet …', done: false, error: null, log: '' };
+    const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count), reelsFlag], { cwd: ROOT });
     child.stdout.on('data', d => { j.log += d; String(d).split('\n').forEach(l => l.trim() && stageFrom(l, j)); });
     child.stderr.on('data', d => { j.log += d; });
-    child.on('close', code => {
-      j.ads = fs.existsSync(ADS) ? fs.readdirSync(ADS).filter(f => /\.png$/.test(f)).sort().map(f => '/ads/' + f) : [];
-      j.reels = fs.existsSync(REELS) ? fs.readdirSync(REELS).filter(f => /^reel_\d+\.mp4$/.test(f)).sort().map(f => '/reels/' + f) : [];
-      if (!j.ads.length) j.error = 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
+    child.on('close', () => {
+      const adsN = fs.existsSync(ADS) ? fs.readdirSync(ADS).filter(f => /\.png$/.test(f)).length : 0;
+      if (!adsN) j.error = 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
       j.stage = '✅ Fertig'; j.done = true;
     });
     res.json({ id });
   });
 
-app.get('/status/:id', (req, res) => { const j = jobs[req.params.id]; if (!j) return res.status(404).json({ error: 'unbekannt' }); res.json({ stage: j.stage, done: j.done, error: j.error, ads: j.ads, reels: j.reels }); });
+// /status scannt die Ordner LIVE → Bilder erscheinen, sobald fertig (nicht erst nach den Reels)
+app.get('/status/:id', (req, res) => {
+  const j = jobs[req.params.id]; if (!j) return res.status(404).json({ error: 'unbekannt' });
+  const scan = (dir, rx) => fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => rx.test(f)).sort() : [];
+  res.json({
+    stage: j.stage, done: j.done, error: j.error,
+    ads: scan(ADS, /\.png$/).map(f => '/ads/' + f),
+    reels: scan(REELS, /^reel_\d+\.mp4$/).map(f => '/reels/' + f),
+  });
+});
 app.use('/ads', express.static(ADS));
 app.use('/reels', express.static(REELS));
 app.use('/assets', express.static(path.join(ROOT, 'assets')));
@@ -109,6 +118,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
    <textarea id="brief" placeholder="z.B. Eine ruhige Anzeige zum Thema Pilates am Morgen, im Stil der hochgeladenen Bilder, edel und reduziert."></textarea>
    <div class="row" style="margin-top:18px">
      <div><label>Anzahl Anzeigen</label><select id="count"><option>8</option><option>6</option><option>4</option><option>3</option></select></div>
+     <div><label>Reels</label><label style="text-transform:none;letter-spacing:0;color:var(--cream);font-size:15px;display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="reels"> auch 2 Reels <span style="color:#9a9aa2">(langsam auf Gratis)</span></label></div>
      <button id="go">Generieren</button>
    </div>
    <div class="status" id="status"></div>
@@ -116,7 +126,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
 
  <div class="results" id="results">
    <div class="h2">deine anzeigen.</div><div class="grid" id="ads"></div>
-   <div class="h2">deine reels.</div><div class="reels" id="rl"></div>
+   <div id="reelsBlock" style="display:none"><div class="h2">deine reels.</div><div class="reels" id="rl"></div></div>
    <div class="foot">Rechtsklick → Speichern, oder antippen zum Öffnen. Vor dem Posten bitte prüfen.</div>
  </div>
 </div>
@@ -136,20 +146,23 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
    go.disabled=true;results.style.display='none';status.style.display='block';
    status.innerHTML='<span class="spin"></span> Startet …';
    const fd=new FormData();fd.append('brief',brief);fd.append('count',document.getElementById('count').value);
+   fd.append('reels',document.getElementById('reels').checked?'1':'0');
    picked.forEach(f=>fd.append('refs',f));
    let id;
    try{const r=await fetch('/generate',{method:'POST',body:fd});const j=await r.json();if(j.error)throw new Error(j.error);id=j.id;}
    catch(e){status.innerHTML='❌ '+e.message;go.disabled=false;return;}
    const poll=setInterval(async()=>{
-     const s=await(await fetch('/status/'+id)).json();
-     status.innerHTML='<span class="spin"></span> '+s.stage;
-     if(s.done){clearInterval(poll);go.disabled=false;
-       if(s.error){status.innerHTML='❌ '+s.error;return;}
-       status.innerHTML='✅ Fertig — '+s.ads.length+' Anzeigen + '+s.reels.length+' Reels.';
+     let s; try{ s=await(await fetch('/status/'+id)).json(); }catch(e){ return; }
+     if(s.ads&&s.ads.length){
        document.getElementById('ads').innerHTML=s.ads.map(u=>'<a href="'+u+'" target="_blank"><img src="'+u+'"></a>').join('');
-       document.getElementById('rl').innerHTML=s.reels.map(u=>'<video src="'+u+'" controls loop muted playsinline></video>').join('');
        results.style.display='block';
      }
+     if(s.reels&&s.reels.length){
+       document.getElementById('reelsBlock').style.display='block';
+       document.getElementById('rl').innerHTML=s.reels.map(u=>'<video src="'+u+'" controls loop muted playsinline></video>').join('');
+     }
+     status.innerHTML = s.done ? (s.error?('❌ '+s.error):('✅ Fertig — '+(s.ads?s.ads.length:0)+' Anzeigen'+(s.reels&&s.reels.length?(' + '+s.reels.length+' Reels'):'')+'.')) : ('<span class="spin"></span> '+s.stage);
+     if(s.done){clearInterval(poll);go.disabled=false;}
    },1800);
  };
 </script></body></html>`;

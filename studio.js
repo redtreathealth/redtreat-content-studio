@@ -76,6 +76,7 @@ function makeReel(adPng, outMp4, mode) {
 async function main() {
   const briefText = process.argv[2];
   const want = Math.max(1, Math.min(8, Number(process.argv[3]) || 8));
+  const makeReels = process.argv[4] !== '0';
   if (!briefText) { console.error('Usage: node studio.js "<brief>" [anzahl=8]'); process.exit(1); }
   const env = loadEnv();
   const fmt = brand.formats.story;
@@ -115,16 +116,18 @@ async function main() {
   }
   console.log('');
 
-  console.log('🎞️  Baue 2 Explainer-Reels …');
   const reels = [];
-  const feats = ['longevity-score', 'gps-lauf', 'schlaf & recovery', 'food-tracking'];
-  for (let i = 0; i < Math.min(2, chosen.length); i++) {
-    const cfg = { hero: `input/studio/cand_${i + 1}.png`, appHome: 'assets/app_home.png', logo: 'assets/logo_tx.png',
-      kicker: d.kicker, headline: d.headline, score: sv, cta: d.cta, features: feats };
-    const mp4 = path.join(REELS, `reel_${i + 1}.mp4`);
-    try { await renderReel(cfg, mp4); reels.push(mp4); process.stdout.write(`✓${i + 1} `); } catch (e) { console.warn('   Reel-Fehler:', e.message); }
-  }
-  console.log('');
+  if (makeReels) {
+    console.log('🎞️  Baue 2 Explainer-Reels …');
+    const feats = ['longevity-score', 'gps-lauf', 'schlaf & recovery', 'food-tracking'];
+    for (let i = 0; i < Math.min(2, chosen.length); i++) {
+      const cfg = { hero: `input/studio/cand_${i + 1}.png`, appHome: 'assets/app_home.png', logo: 'assets/logo_tx.png',
+        kicker: d.kicker, headline: d.headline, score: sv, cta: d.cta, features: feats };
+      const mp4 = path.join(REELS, `reel_${i + 1}.mp4`);
+      try { await renderReel(cfg, mp4); reels.push(mp4); process.stdout.write(`✓${i + 1} `); } catch (e) { console.warn('   Reel-Fehler:', e.message); }
+    }
+    console.log('');
+  } else { console.log('🎞️  Reels übersprungen (deaktiviert).'); }
 
   await closeBrowser();
   console.log('\n✅ FERTIG:');
