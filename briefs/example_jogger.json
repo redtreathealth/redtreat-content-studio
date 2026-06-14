@@ -1,0 +1,22 @@
+{
+  "name": "jogger_story",
+  "format": "story",
+  "photo": "jogger_mann.png",
+  "logo": "assets/logo_tx.png",
+  "kicker": "LONGEVITY IN MOTION",
+  "headline": ["Dein Morgen.", "Dein Tempo."],
+  "cardLabel": "SCORE ◆ HEUTE",
+  "badge": "LIVE · GPS",
+  "sub": "Recovery, Schlaf & Aktivität — in einem Longevity-Score.",
+  "score": { "value": 88, "label": "LONGEVITY" },
+  "stats": [
+    { "k": "RECOVERY", "v": "92", "unit": "%" },
+    { "k": "SLEEP", "v": "8:05" }
+  ],
+  "twoCol": [
+    { "v": "54", "l": "BPM" },
+    { "v": "11'240", "l": "SCHRITTE" }
+  ],
+  "cta": "Kostenlos laden",
+  "store": "GRATIS IM APP STORE"
+}

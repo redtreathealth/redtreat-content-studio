@@ -1,0 +1,158 @@
+/**
+ * redtreat Studio – Web-App.
+ * Browser: Bilder hochladen + Brief tippen → 8 Anzeigen + 2 Reels.
+ * Startet die Studio-Pipeline (studio.js) als Job und zeigt die Ergebnisse.
+ */
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+
+const ROOT = __dirname;
+const REFS = path.join(ROOT, 'input', 'refs');
+const ADS = path.join(ROOT, 'output', 'studio');
+const REELS = path.join(ROOT, 'reels');
+[REFS, ADS, REELS, path.join(ROOT, 'input', 'studio')].forEach(d => fs.mkdirSync(d, { recursive: true }));
+const clearDir = (d, rx) => { try { fs.readdirSync(d).forEach(f => { if (!rx || rx.test(f)) fs.rmSync(path.join(d, f), { force: true }); }); } catch {} };
+
+const app = express();
+const upload = multer({ storage: multer.diskStorage({
+  destination: (req, file, cb) => cb(null, REFS),
+  filename: (req, file, cb) => cb(null, 'ref_' + Date.now() + '_' + file.originalname.replace(/[^\w.]+/g, '_')),
+}) });
+
+const jobs = {};
+function stageFrom(line, j) {
+  if (line.includes('Creative Director')) j.stage = '🎬 Creative Director liest deine Bilder & den Brief …';
+  else if (line.includes('Generiere')) j.stage = '🖼️ Foto-Varianten werden generiert …';
+  else if (line.includes('QC')) j.stage = '🔎 Qualitätskontrolle (Anatomie) …';
+  else if (line.includes('Baue ') && line.includes('Anzeigen')) j.stage = '🎨 Anzeigen werden gebaut …';
+  else if (line.includes('Explainer-Reels')) j.stage = '🎞️ Reels werden animiert (dauert kurz) …';
+}
+
+app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.array('refs', 8),
+  (req, res) => {
+    const brief = (req.body.brief || '').trim();
+    const count = Math.max(1, Math.min(8, parseInt(req.body.count) || 8));
+    if (!brief) return res.status(400).json({ error: 'Bitte einen Brief eingeben.' });
+    clearDir(ADS); clearDir(REELS, /\.mp4$/); clearDir(path.join(ROOT, 'input', 'studio'));
+
+    const id = 'job_' + Date.now();
+    const j = jobs[id] = { stage: '⏳ Startet …', done: false, error: null, ads: [], reels: [], log: '' };
+    const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count)], { cwd: ROOT });
+    child.stdout.on('data', d => { j.log += d; String(d).split('\n').forEach(l => l.trim() && stageFrom(l, j)); });
+    child.stderr.on('data', d => { j.log += d; });
+    child.on('close', code => {
+      j.ads = fs.existsSync(ADS) ? fs.readdirSync(ADS).filter(f => /\.png$/.test(f)).sort().map(f => '/ads/' + f) : [];
+      j.reels = fs.existsSync(REELS) ? fs.readdirSync(REELS).filter(f => /^reel_\d+\.mp4$/.test(f)).sort().map(f => '/reels/' + f) : [];
+      if (!j.ads.length) j.error = 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
+      j.stage = '✅ Fertig'; j.done = true;
+    });
+    res.json({ id });
+  });
+
+app.get('/status/:id', (req, res) => { const j = jobs[req.params.id]; if (!j) return res.status(404).json({ error: 'unbekannt' }); res.json({ stage: j.stage, done: j.done, error: j.error, ads: j.ads, reels: j.reels }); });
+app.use('/ads', express.static(ADS));
+app.use('/reels', express.static(REELS));
+app.use('/assets', express.static(path.join(ROOT, 'assets')));
+app.get('/', (req, res) => res.type('html').send(PAGE));
+
+const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>redtreat Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Cabin:wght@500;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+ :root{--red:#E10600;--cream:#FBF7F1;--bg:#07070A;--surf:#141418;--line:#26262E}
+ *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--cream);font-family:'Outfit',sans-serif;-webkit-font-smoothing:antialiased}
+ .wrap{max-width:1000px;margin:0 auto;padding:40px 24px 80px}
+ header{display:flex;align-items:center;gap:16px;margin-bottom:8px}
+ header img{height:54px}
+ h1{font-family:'Cabin';font-weight:700;font-size:40px;letter-spacing:-1px;text-transform:lowercase;margin:18px 0 6px}
+ h1 .r{color:var(--red)}
+ .sub{color:#9a9aa2;font-size:17px;margin-bottom:28px}
+ .card{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:24px;margin-bottom:20px}
+ label{display:block;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#9a9aa2;margin-bottom:10px}
+ textarea{width:100%;min-height:120px;background:#0e0e12;border:1px solid var(--line);border-radius:12px;color:var(--cream);font-family:inherit;font-size:17px;padding:16px;resize:vertical}
+ .drop{border:1.5px dashed #3a3a44;border-radius:12px;padding:26px;text-align:center;color:#9a9aa2;cursor:pointer;transition:.15s}
+ .drop:hover{border-color:var(--red);color:var(--cream)}
+ .thumbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+ .thumbs img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+ .row{display:flex;gap:16px;align-items:end;flex-wrap:wrap}
+ select{background:#0e0e12;border:1px solid var(--line);color:var(--cream);border-radius:10px;padding:12px 16px;font-family:inherit;font-size:16px}
+ button{background:var(--red);color:#fff;border:0;border-radius:100px;padding:18px 40px;font-family:'Outfit';font-weight:600;font-size:18px;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+ button:disabled{opacity:.5;cursor:default}
+ .status{margin-top:18px;font-size:17px;color:var(--cream);display:none}
+ .spin{display:inline-block;width:16px;height:16px;border:2px solid #555;border-top-color:var(--red);border-radius:50%;animation:s 1s linear infinite;vertical-align:-2px;margin-right:8px}
+ @keyframes s{to{transform:rotate(360deg)}}
+ .results{display:none;margin-top:10px}
+ .h2{font-family:'Cabin';font-weight:700;font-size:24px;text-transform:lowercase;margin:26px 0 14px}
+ .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+ .grid a{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+ .grid img{width:100%;display:block}
+ .reels{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+ .reels video{width:100%;border-radius:14px;border:1px solid var(--line);background:#000}
+ .foot{color:#6a6a72;font-size:13px;margin-top:30px}
+</style></head><body><div class="wrap">
+ <header><img src="/assets/logo_tx.png" alt="redtreat"></header>
+ <h1>content <span class="r">studio.</span></h1>
+ <div class="sub">Beispielbilder hochladen, Brief schreiben — du bekommst 8 Anzeigen + 2 Reels. 100 % markenkonform.</div>
+
+ <div class="card">
+   <label>1 · Referenzbilder (optional)</label>
+   <div class="drop" id="drop">Bilder hierher ziehen oder klicken zum Auswählen</div>
+   <input type="file" id="files" accept="image/*" multiple hidden>
+   <div class="thumbs" id="thumbs"></div>
+ </div>
+
+ <div class="card">
+   <label>2 · Was brauchst du? (Brief)</label>
+   <textarea id="brief" placeholder="z.B. Eine ruhige Anzeige zum Thema Pilates am Morgen, im Stil der hochgeladenen Bilder, edel und reduziert."></textarea>
+   <div class="row" style="margin-top:18px">
+     <div><label>Anzahl Anzeigen</label><select id="count"><option>8</option><option>6</option><option>4</option><option>3</option></select></div>
+     <button id="go">Generieren</button>
+   </div>
+   <div class="status" id="status"></div>
+ </div>
+
+ <div class="results" id="results">
+   <div class="h2">deine anzeigen.</div><div class="grid" id="ads"></div>
+   <div class="h2">deine reels.</div><div class="reels" id="rl"></div>
+   <div class="foot">Rechtsklick → Speichern, oder antippen zum Öffnen. Vor dem Posten bitte prüfen.</div>
+ </div>
+</div>
+<script>
+ const drop=document.getElementById('drop'),files=document.getElementById('files'),thumbs=document.getElementById('thumbs');
+ let picked=[];
+ drop.onclick=()=>files.click();
+ files.onchange=()=>{picked=[...files.files];render();};
+ function render(){thumbs.innerHTML='';picked.forEach(f=>{const i=new Image();i.src=URL.createObjectURL(f);thumbs.appendChild(i);});}
+ ['dragover','dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();}));
+ drop.addEventListener('drop',ev=>{picked=[...ev.dataTransfer.files].filter(f=>f.type.startsWith('image'));render();});
+
+ const go=document.getElementById('go'),status=document.getElementById('status'),results=document.getElementById('results');
+ go.onclick=async()=>{
+   const brief=document.getElementById('brief').value.trim();
+   if(!brief){alert('Bitte einen Brief schreiben.');return;}
+   go.disabled=true;results.style.display='none';status.style.display='block';
+   status.innerHTML='<span class="spin"></span> Startet …';
+   const fd=new FormData();fd.append('brief',brief);fd.append('count',document.getElementById('count').value);
+   picked.forEach(f=>fd.append('refs',f));
+   let id;
+   try{const r=await fetch('/generate',{method:'POST',body:fd});const j=await r.json();if(j.error)throw new Error(j.error);id=j.id;}
+   catch(e){status.innerHTML='❌ '+e.message;go.disabled=false;return;}
+   const poll=setInterval(async()=>{
+     const s=await(await fetch('/status/'+id)).json();
+     status.innerHTML='<span class="spin"></span> '+s.stage;
+     if(s.done){clearInterval(poll);go.disabled=false;
+       if(s.error){status.innerHTML='❌ '+s.error;return;}
+       status.innerHTML='✅ Fertig — '+s.ads.length+' Anzeigen + '+s.reels.length+' Reels.';
+       document.getElementById('ads').innerHTML=s.ads.map(u=>'<a href="'+u+'" target="_blank"><img src="'+u+'"></a>').join('');
+       document.getElementById('rl').innerHTML=s.reels.map(u=>'<video src="'+u+'" controls loop muted playsinline></video>').join('');
+       results.style.display='block';
+     }
+   },1800);
+ };
+</script></body></html>`;
+
+const PORT = process.env.PORT || 8787;
+app.listen(PORT, () => console.log('redtreat Studio läuft auf http://localhost:' + PORT));

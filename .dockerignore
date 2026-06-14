@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+output
+reels
+input/refs
+input/studio
+input/*.png
+input/jogger_mann.png
+input/joggerin_zuerich.png
+briefs/_*

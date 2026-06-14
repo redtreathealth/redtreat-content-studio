@@ -1,0 +1,42 @@
+{
+  "name": "pilates",
+  "format": "story",
+  "photo": "pilates.png",
+  "logo": "assets/logo_tx.png",
+  "regenerate": true,
+  "kicker": "deine haltung.",
+  "headline": [
+    "innere mitte.",
+    "neue kraft."
+  ],
+  "sub": "spüre die verbindung von körper und atem mit präziser achtsamkeit.",
+  "imagePrompt": "Luxury editorial photograph of a woman performing a controlled, upright pilates posture on a minimalist light wood floor. She is viewed from a slight profile, arms extended with serene grace, wearing a flowing, long-sleeved, high-quality linen outfit in a muted beige. The setting is a bright, minimalist studio with abundant soft, diffused natural daylight filtering from large windows, creating ethereal light and subtle shadows. A single, very subtle, almost imperceptible detail of deep red in the distant background, perhaps a soft, diffused light streak or a small, elegant minimalist object. Shot with an 85mm prime lens on medium format film, achieving a clean, sharp focus on the subject with a softly blurred background. Color grading is natural with cool, muted undertones, cinematic film grain, emphasizing quiet luxury and serenity. Composition places the woman in the lower half of the frame, leaving significant bright, empty space above her head for text, centered, square-crop friendly. No logos or text. photorealistic, editorial. natural correct human anatomy, both legs visible.",
+  "cardLabel": "SCORE ◆ HEUTE",
+  "score": {
+    "value": 92,
+    "label": "LONGEVITY"
+  },
+  "stats": [
+    {
+      "k": "RECOVERY",
+      "v": "96",
+      "unit": "%"
+    },
+    {
+      "k": "SLEEP",
+      "v": "8:12"
+    }
+  ],
+  "twoCol": [
+    {
+      "v": "58",
+      "l": "BPM"
+    },
+    {
+      "v": "6.4",
+      "l": "STRAIN"
+    }
+  ],
+  "cta": "die app.",
+  "store": "GRATIS IM APP STORE"
+}

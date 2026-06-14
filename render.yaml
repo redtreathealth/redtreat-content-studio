@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: redtreat-content-studio
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false   # Geheim – im Render-Dashboard eintragen
+      - key: CF_API_TOKEN
+        sync: false   # Geheim – im Render-Dashboard eintragen
+      - key: CF_ACCOUNT_ID
+        sync: false   # Im Render-Dashboard eintragen
+      - key: IMAGE_PROVIDER
+        value: cloudflare
+      - key: CF_MODEL
+        value: "@cf/black-forest-labs/flux-1-schnell"
+      - key: CANDIDATES
+        value: "8"
+      - key: TEXT_MODEL
+        value: gemini-2.5-flash
