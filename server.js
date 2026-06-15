@@ -43,7 +43,7 @@ app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.ar
     clearDir(ADS); clearDir(REELS, /\.mp4$/); clearDir(path.join(ROOT, 'input', 'studio'));
 
     const reelsFlag = (req.body.reels === '1' || req.body.reels === 'on') ? '1' : '0';
-    const mode = ['product', 'hybrid'].includes(req.body.mode) ? req.body.mode : 'lifestyle';
+    const mode = ['product', 'hybrid', 'studio'].includes(req.body.mode) ? req.body.mode : 'lifestyle';
     const id = 'job_' + Date.now();
     const j = jobs[id] = { stage: '⏳ Startet …', done: false, error: null, log: '' };
     const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count), reelsFlag, mode], { cwd: ROOT });
@@ -51,7 +51,7 @@ app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.ar
     child.stderr.on('data', d => { j.log += d; });
     child.on('close', () => {
       const adsN = fs.existsSync(ADS) ? fs.readdirSync(ADS).filter(f => /\.png$/.test(f)).length : 0;
-      if (!adsN) j.error = (mode === 'product' || mode === 'hybrid')
+      if (!adsN) j.error = (mode !== 'lifestyle')
         ? 'Keine Anzeige erzeugt – hast du ein Produktfoto hochgeladen? (Hybrid braucht zudem freies FLUX-Kontingent)'
         : 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
       j.stage = '✅ Fertig'; j.done = true;
@@ -129,6 +129,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
    <div class="row" style="margin-top:18px">
      <div><label>Modus</label><select id="mode">
        <option value="lifestyle">KI-Bilder (Lifestyle)</option>
+       <option value="studio">Clean Studio (hell, freigestellt)</option>
        <option value="hybrid">Hybrid: KI-Szene + echtes Produkt</option>
        <option value="product">Nur echtes Produktfoto</option>
      </select></div>
@@ -158,6 +159,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
  const go=document.getElementById('go'),status=document.getElementById('status'),results=document.getElementById('results');
  const mode=document.getElementById('mode'),phint=document.getElementById('phint');
  const HINTS={
+   studio:'✨ <b>Clean Studio:</b> heller, minimalistischer Look (wie CurrentBody/Omnilux) — dein <b>echtes Produkt</b> wird freigestellt und mit rotem Glow auf hellem Grund inszeniert. Foto auf <b>weißem/ruhigem Hintergrund</b> ideal. Schnell (kein FLUX nötig).',
    hybrid:'🪄 <b>Hybrid:</b> die KI baut eine <b>neue Umgebung</b>, dein <b>echtes Produkt</b> (= erstes hochgeladenes Bild) wird sauber reinmontiert. Am besten ein Foto auf <b>weißem/ruhigem Hintergrund</b>. Echte Eckdaten in den Brief.',
    product:'📦 <b>Produktfoto:</b> dein <b>erstes hochgeladenes Bild</b> wird als echtes Produkt verwendet — die KI erfindet <b>kein</b> Produkt. Echte Eckdaten in den Brief, z.B. „8 Wellenlängen, 180 mW/cm², 1-Tasten-Bedienung".'
  };
@@ -166,7 +168,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
  go.onclick=async()=>{
    const brief=document.getElementById('brief').value.trim();
    if(!brief){alert('Bitte einen Brief schreiben.');return;}
-   if((mode.value==='product'||mode.value==='hybrid')&&!picked.length){alert('Dieser Modus braucht dein echtes Produktfoto — bitte lade es zuerst hoch.');return;}
+   if(mode.value!=='lifestyle'&&!picked.length){alert('Dieser Modus braucht dein echtes Produktfoto — bitte lade es zuerst hoch.');return;}
    go.disabled=true;results.style.display='none';status.style.display='block';
    status.innerHTML='<span class="spin"></span> Startet …';
    const fd=new FormData();fd.append('brief',brief);fd.append('count',document.getElementById('count').value);

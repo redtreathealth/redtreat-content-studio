@@ -303,6 +303,7 @@ function buildHybridHTML(brief) {
   const css = `
  .scene{position:absolute;inset:0;background:${C.bgDark} url('${scene}') center/cover no-repeat}
  .grade{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 38%, ${tint}, transparent 60%), radial-gradient(150% 100% at 50% 122%, rgba(0,0,0,.55), transparent 55%);mix-blend-mode:multiply;opacity:.92}
+ .spill{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:1280px;height:1280px;background:radial-gradient(circle at 50% 50%, rgba(255,96,72,.5), rgba(224,37,44,.22) 40%, rgba(224,37,44,0) 68%);mix-blend-mode:screen;filter:blur(8px)}
  .contact{position:absolute;left:50%;transform:translateX(-50%);bottom:388px;width:540px;height:92px;background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.62), transparent 70%);filter:blur(11px)}
  .cut{position:absolute;left:50%;transform:translateX(-50%);bottom:392px;height:1044px;object-fit:contain;filter:drop-shadow(0 38px 52px rgba(0,0,0,.5))}
  .topscrim{position:absolute;left:0;right:0;top:0;height:620px;background:linear-gradient(to bottom, rgba(7,7,10,.74) 0%, rgba(7,7,10,.3) 44%, rgba(7,7,10,0) 100%)}
@@ -317,7 +318,7 @@ function buildHybridHTML(brief) {
  .cta{position:absolute;bottom:120px;left:0;right:0;text-align:center}
  .store{position:absolute;bottom:74px;left:0;right:0;text-align:center}`;
   const body = `
- <div class="scene"></div><div class="grade"></div>
+ <div class="scene"></div><div class="grade"></div><div class="spill"></div>
  <div class="contact"></div><img class="cut" src="${cut}">
  <div class="topscrim"></div><div class="botscrim"></div>
  <img class="logo" src="${x.logo}">${_kickEl(brief)}
@@ -325,6 +326,56 @@ function buildHybridHTML(brief) {
  <div class="strip">${strip}</div>
  ${_ctaEl(brief)}${_storeEl(brief)}`;
   return _wrap(x, css, body);
+}
+
+/**
+ * CLEAN-STUDIO-MODUS: heller, minimalistischer Look (Omnilux/CurrentBody) — freigestelltes Produkt
+ * mit rotem Glow-Halo auf hellem Creme-Grund, ink-Typo, viel Weißraum. brief.photo = transparenter Cutout.
+ * Heller Hintergrund → Wortmarke als Text (weißes Logo wäre unsichtbar).
+ */
+function buildStudioHTML(brief) {
+  const C = brand.colors, F = brand.fonts;
+  const fmt = brand.formats[brief.format || 'story'];
+  const cut = fileUrl(path.join('input', brief.photo));
+  const cabin = fileUrl(brand.fonts.files.Cabin);
+  const outfit = fileUrl(brand.fonts.files.Outfit);
+  const headline = (brief.headline || []).map((line, i) =>
+    i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)).join('<br>');
+  const strip = (brief.specs || []).slice(0, 4).map(s => `<div class="scol"><div class="sv">${esc(s.value || '')}</div><div class="sl">${esc(s.label || '')}</div></div>`).join('');
+  const halo = { glow: 'rgba(224,37,44,.30)', warm: 'rgba(255,120,60,.30)', mono: 'rgba(224,37,44,.15)' }[brief.bgVariant || 'glow'];
+  const bg = `radial-gradient(72% 50% at 50% 42%, #FFFFFF, ${C.cream} 60%, #EFE7DB 100%)`;
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+ @font-face{font-family:'Cabin';src:url('${cabin}') format('truetype');font-weight:100 900;font-style:normal}
+ @font-face{font-family:'Outfit';src:url('${outfit}') format('truetype');font-weight:100 900;font-style:normal}
+ html,body{margin:0;padding:0}*{box-sizing:border-box}
+ .ad{position:relative;width:${fmt.w}px;height:${fmt.h}px;overflow:hidden;background:${bg};font-family:${F.body}}
+ .wm{position:absolute;top:62px;left:62px;font-family:${F.display};font-weight:700;font-size:46px;letter-spacing:-2px}
+ .wm .r{color:${C.red}} .wm .t{color:${C.ink}}
+ .kick{position:absolute;top:314px;left:66px;display:flex;align-items:center;gap:16px;color:#8a8076;font-size:22px;letter-spacing:6px;font-weight:600;text-transform:uppercase}
+ .kick .ln{width:54px;height:2px;background:${C.red};display:block}
+ .h1{position:absolute;top:346px;left:62px;right:110px;color:${C.ink};font-family:${F.display};font-size:104px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase}
+ .h1 .r{color:${C.red}}
+ .halo{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:1180px;height:1180px;background:radial-gradient(circle at 50% 50%, ${halo}, transparent 62%);filter:blur(6px)}
+ .floor{position:absolute;left:50%;bottom:392px;transform:translateX(-50%);width:560px;height:84px;background:radial-gradient(50% 50% at 50% 50%, rgba(70,38,26,.20), transparent 70%);filter:blur(10px)}
+ .cut{position:absolute;left:50%;bottom:404px;transform:translateX(-50%);height:1006px;object-fit:contain;filter:drop-shadow(0 34px 44px rgba(80,44,32,.26))}
+ .strip{position:absolute;left:72px;right:72px;bottom:300px;display:flex}
+ .scol{flex:1;text-align:center;border-left:1px solid rgba(29,29,27,.16);padding:0 6px}
+ .scol:first-child{border-left:0}
+ .scol .sv{color:${C.ink};font-size:40px;font-weight:400;letter-spacing:-1px;line-height:1}
+ .scol .sl{color:#8a8076;font-size:18px;letter-spacing:.6px;margin-top:7px;font-weight:500;line-height:1.15}
+ .cta{position:absolute;bottom:120px;left:0;right:0;text-align:center}
+ .cta .pill{display:inline-flex;align-items:center;gap:14px;background:${C.red};color:#fff;font-size:31px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:25px 52px;border-radius:100px;box-shadow:0 20px 44px rgba(224,37,44,.34)}
+ .store{position:absolute;bottom:74px;left:0;right:0;text-align:center;color:#8a8076;font-size:21px;letter-spacing:3px;font-weight:500}
+</style></head><body><div class="ad">
+ <div class="halo"></div>
+ <div class="wm"><span class="r">red</span><span class="t">treat</span></div>
+ ${brief.kicker ? `<div class="kick"><span class="ln"></span>${esc(brief.kicker)}</div>` : ''}
+ <div class="h1">${headline}</div>
+ <div class="floor"></div><img class="cut" src="${cut}">
+ <div class="strip">${strip}</div>
+ ${brief.cta ? `<div class="cta"><span class="pill">${esc(brief.cta)} ◆</span></div>` : ''}
+ ${brief.store ? `<div class="store">${esc(brief.store)}</div>` : ''}
+</div></body></html>`;
 }
 
 // HTML → PNG via Playwright/Chromium (plattform-unabhängig, zuverlässig)
@@ -372,4 +423,4 @@ async function main() {
   else { console.error('❌ Render fehlgeschlagen.'); process.exit(3); }
 }
 if (require.main === module) main().catch(e => { console.error('❌', e.message); process.exit(1); });
-module.exports = { buildHTML, buildProductHTML, buildHybridHTML, renderPNG };
+module.exports = { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, renderPNG };

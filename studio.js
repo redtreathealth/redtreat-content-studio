@@ -13,7 +13,7 @@ const { execFileSync } = require('child_process');
 const brand = require('./brand.config');
 const { lint } = require('./brand-lint');
 const { generate, qcRank } = require('./generate');
-const { buildHTML, buildProductHTML, buildHybridHTML, renderPNG } = require('./render');
+const { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, renderPNG } = require('./render');
 const { renderReel } = require('./reelmaker');
 const { closeBrowser } = require('./browser');
 const { cutoutBackground } = require('./cutout');
@@ -213,6 +213,56 @@ async function productMain(briefText, want, makeReels, env) {
   reels.forEach(r => console.log('   🎞️ ', r));
 }
 
+// ───────────────────────── CLEAN-STUDIO-MODUS ─────────────────────────
+// Heller, minimalistischer Look (Omnilux/CurrentBody): echtes Produkt freigestellt + roter Glow auf Creme. Kein FLUX.
+async function studioMain(briefText, want, makeReels, env) {
+  const fmt = brand.formats.story;
+  const imgs = fs.existsSync(REFS) ? fs.readdirSync(REFS).filter(f => /\.(png|jpe?g|webp)$/i.test(f)).sort() : [];
+  if (!imgs.length) { console.error('❌ Clean-Studio: bitte lade ein Produktfoto hoch.'); process.exit(5); }
+
+  console.log('✂️  Stelle das echte Produkt frei …');
+  const cutPng = path.join(CAND, 'cutout.png');
+  try { await cutoutBackground(path.join(REFS, imgs[0]), cutPng); }
+  catch (e) { console.error('❌ Freistellen fehlgeschlagen:', e.message); process.exit(6); }
+
+  console.log('🎬 Creative Director schreibt die Copy …');
+  const d = await productDirector(briefText, env, cutPng);
+  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}`);
+
+  const briefBase = {
+    format: 'story', photo: 'studio/cutout.png',
+    kicker: d.kicker, headline: d.headline, sub: d.sub, specs: d.specs,
+    cta: d.cta, store: d.priceLine || 'JETZT AUF REDTREAT.CH',
+  };
+  const { hard } = lint(briefBase); if (hard.length) { console.error('❌ Brand:', hard.join('; ')); process.exit(2); }
+
+  const variants = ['glow', 'warm', 'mono', 'glow', 'warm', 'mono', 'glow', 'warm'];
+  console.log(`🎨 Baue ${want} Clean-Studio-Anzeigen …`);
+  const ads = [];
+  for (let k = 0; k < want; k++) {
+    const brief = { ...briefBase, name: `ad_${k + 1}`, bgVariant: variants[k % variants.length] };
+    const outPng = path.join(OUT, `ad_${k + 1}.png`);
+    if (await renderPNG(buildStudioHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
+  }
+  console.log('');
+
+  const reels = [];
+  if (makeReels && ads.length) {
+    console.log('🎞️  Baue Reel (sanfter Zoom) …');
+    for (let i = 0; i < Math.min(2, ads.length); i++) {
+      const mp4 = path.join(REELS, `reel_${i + 1}.mp4`);
+      try { makeReel(ads[i], mp4, i % 2 ? 'pan' : 'zoom'); reels.push(mp4); process.stdout.write(`✓${i + 1} `); }
+      catch (e) { console.warn('   Reel-Fehler:', e.message); }
+    }
+    console.log('');
+  } else if (!makeReels) { console.log('🎞️  Reels übersprungen (deaktiviert).'); }
+
+  await closeBrowser();
+  console.log('\n✅ FERTIG:');
+  ads.forEach(a => console.log('   🖼️ ', a));
+  reels.forEach(r => console.log('   🎞️ ', r));
+}
+
 // ───────────────────────── HYBRID-MODUS ─────────────────────────
 // KI generiert eine neue UMGEBUNG (FLUX) — das echte, freigestellte Produkt wird reinmontiert.
 async function hybridMain(briefText, want, makeReels, env) {
@@ -286,6 +336,7 @@ async function main() {
   if (!briefText) { console.error('Usage: node studio.js "<brief>" [anzahl=8] [reels=1] [mode=lifestyle|product]'); process.exit(1); }
   const env = loadEnv();
   if (mode === 'product') return productMain(briefText, want, makeReels, env);
+  if (mode === 'studio') return studioMain(briefText, want, makeReels, env);
   if (mode === 'hybrid') return hybridMain(briefText, want, makeReels, env);
   const fmt = brand.formats.story;
 
