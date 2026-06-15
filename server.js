@@ -131,7 +131,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
        <option value="lifestyle">KI-Bilder (Lifestyle)</option>
        <option value="studio">Clean Studio (hell, freigestellt)</option>
        <option value="hybrid">Hybrid: KI-Szene + echtes Produkt</option>
-       <option value="product">Nur echtes Produktfoto</option>
+       <option value="product">Panel in Anwendung (dunkel, mit Person)</option>
      </select></div>
      <div><label>Anzahl Anzeigen</label><select id="count"><option>8</option><option>6</option><option>4</option><option>3</option></select></div>
      <div><label>Reels</label><label class="chk"><input type="checkbox" id="reels"> auch 2 Reels <span style="color:#9a9aa2">(langsam auf Gratis)</span></label></div>
@@ -161,7 +161,7 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
  const HINTS={
    studio:'✨ <b>Clean Studio:</b> heller, minimalistischer Look (wie CurrentBody/Omnilux) — dein <b>echtes Produkt</b> wird freigestellt und mit rotem Glow auf hellem Grund inszeniert. Foto auf <b>weißem/ruhigem Hintergrund</b> ideal. Schnell (kein FLUX nötig).',
    hybrid:'🪄 <b>Hybrid:</b> die KI baut eine <b>neue Umgebung</b>, dein <b>echtes Produkt</b> (= erstes hochgeladenes Bild) wird sauber reinmontiert. Am besten ein Foto auf <b>weißem/ruhigem Hintergrund</b>. Echte Eckdaten in den Brief.',
-   product:'📦 <b>Produktfoto:</b> dein <b>erstes hochgeladenes Bild</b> wird als echtes Produkt verwendet — die KI erfindet <b>kein</b> Produkt. Echte Eckdaten in den Brief, z.B. „8 Wellenlängen, 180 mW/cm², 1-Tasten-Bedienung".'
+   product:'📷 <b>Panel in Anwendung (dunkel):</b> lade <b>echte Lifestyle-Fotos</b> hoch (Person am Panel im roten Licht). Jedes Foto wird zu einer dunklen Editorial-Anzeige (Titel + CTA, <b>keine</b> technischen Specs). Mehrere Fotos = mehrere Anzeigen.'
  };
  function syncMode(){const h=HINTS[mode.value];if(h){phint.innerHTML=h;phint.style.display='block';}else{phint.style.display='none';}}
  mode.onchange=syncMode;syncMode();

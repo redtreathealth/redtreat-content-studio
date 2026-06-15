@@ -13,7 +13,7 @@ const { execFileSync } = require('child_process');
 const brand = require('./brand.config');
 const { lint } = require('./brand-lint');
 const { generate, qcRank } = require('./generate');
-const { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, buildEditorialHTML, renderPNG } = require('./render');
+const { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, buildEditorialHTML, buildInUseHTML, renderPNG } = require('./render');
 const { renderReel } = require('./reelmaker');
 const { closeBrowser } = require('./browser');
 const { cutoutBackground } = require('./cutout');
@@ -166,33 +166,29 @@ async function productMain(briefText, want, makeReels, env) {
   const imgs = fs.existsSync(REFS) ? fs.readdirSync(REFS).filter(f => /\.(png|jpe?g|webp)$/i.test(f)).sort() : [];
   if (!imgs.length) { console.error('❌ Produkt-Modus: bitte lade ein echtes Produktfoto hoch.'); process.exit(5); }
 
-  // Erstes hochgeladenes Bild = das echte Produkt → unverändert als Hero.
-  const productPng = path.join(CAND, 'product.png');
-  fs.copyFileSync(path.join(REFS, imgs[0]), productPng);
-  console.log(`📦 Produkt-Modus · echtes Foto: ${imgs[0]}`);
+  // Director nutzt das erste Foto als Kontext für die Copy.
+  const refPng = path.join(CAND, 'use_ref.png');
+  fs.copyFileSync(path.join(REFS, imgs[0]), refPng);
+  console.log(`📸 ${imgs.length} Lifestyle-Foto(s) · Panel in Anwendung`);
 
-  console.log('🎬 Creative Director schreibt die Produkt-Copy …');
-  const d = await productDirector(briefText, env, productPng);
-  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}  ·  Start-Layout: ${d.layout || 'spotlight'}`);
+  console.log('🎬 Creative Director schreibt die Copy …');
+  const d = await productDirector(briefText, env, refPng);
+  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}`);
 
-  const briefBase = {
-    format: 'story', logo: 'assets/logo_tx.png', photo: 'studio/product.png',
-    kicker: d.kicker, headline: d.headline, sub: d.sub, specs: d.specs,
-    cta: d.cta, store: d.priceLine || 'JETZT AUF REDTREAT.CH',
-  };
+  const briefBase = { format: 'story', kicker: d.kicker, headline: d.headline, sub: d.sub, cta: d.cta };
   const { hard } = lint(briefBase); if (hard.length) { console.error('❌ Brand:', hard.join('; ')); process.exit(2); }
 
-  // Jede Anzeige bekommt ein ANDERES Layout (startend beim Director-Vorschlag) → echte Design-Vielfalt.
-  const LAYOUTS = ['spotlight', 'editorial', 'split', 'minimal'];
-  let start = LAYOUTS.indexOf(d.layout); if (start < 0) start = 0;
+  // Jede Anzeige = ein echtes Lifestyle-Foto (zyklisch), dunkles Editorial, Titel mal unten/mal oben. KEINE Specs.
+  const composes = ['bottom', 'top'];
   const variants = ['glow', 'warm', 'mono'];
-  console.log(`🎨 Baue ${want} Produkt-Anzeigen (verschiedene Designs) …`);
+  console.log(`🎨 Baue ${want} Anzeigen (Panel in Anwendung, dunkel) …`);
   const ads = [];
   for (let k = 0; k < want; k++) {
-    const layout = LAYOUTS[(start + k) % LAYOUTS.length];
-    const brief = { ...briefBase, name: `ad_${k + 1}`, layout, bgVariant: variants[k % variants.length] };
+    const src = imgs[k % imgs.length];
+    fs.copyFileSync(path.join(REFS, src), path.join(CAND, `use_${k + 1}.png`));
+    const brief = { ...briefBase, name: `ad_${k + 1}`, photo: `studio/use_${k + 1}.png`, compose: composes[k % composes.length], bgVariant: variants[k % variants.length] };
     const outPng = path.join(OUT, `ad_${k + 1}.png`);
-    if (await renderPNG(buildProductHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1}:${layout} `); }
+    if (await renderPNG(buildInUseHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
   }
   console.log('');
 

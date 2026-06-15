@@ -438,6 +438,58 @@ function buildEditorialHTML(brief) {
 </div></body></html>`;
 }
 
+/**
+ * IN-USE-DESIGN (dunkel, editorial) — echtes Lifestyle-Foto (Panel in Anwendung mit Person) vollflächig,
+ * dunkles Overlay, Masthead + großer Titel + Sub + CTA. KEINE technischen Specs.
+ * brief.photo = echtes Foto (Person am Panel). brief.compose 'bottom'|'top' (Titel unten/oben).
+ */
+function buildInUseHTML(brief) {
+  const C = brand.colors, F = brand.fonts;
+  const fmt = brand.formats[brief.format || 'story'];
+  const photo = fileUrl(path.join('input', brief.photo));
+  const cabin = fileUrl(brand.fonts.files.Cabin);
+  const outfit = fileUrl(brand.fonts.files.Outfit);
+  const headline = (brief.headline || []).map((line, i) =>
+    i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)).join('<br>');
+  const bottom = (brief.compose || 'bottom') === 'bottom';
+  const tint = { glow: 'rgba(224,37,44,.13)', warm: 'rgba(255,120,60,.13)', mono: 'rgba(255,255,255,0)' }[brief.bgVariant || 'glow'];
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+ @font-face{font-family:'Cabin';src:url('${cabin}') format('truetype');font-weight:100 900;font-style:normal}
+ @font-face{font-family:'Outfit';src:url('${outfit}') format('truetype');font-weight:100 900;font-style:normal}
+ html,body{margin:0;padding:0}*{box-sizing:border-box}
+ .ad{position:relative;width:${fmt.w}px;height:${fmt.h}px;overflow:hidden;background:${C.bgDark};font-family:${F.body}}
+ .photo{position:absolute;inset:0;background:${C.bgDark} url('${photo}') center/cover no-repeat}
+ .grade{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 44%, ${tint}, transparent 60%), radial-gradient(150% 100% at 50% 118%, rgba(0,0,0,.5), transparent 55%);mix-blend-mode:multiply}
+ .topscrim{position:absolute;left:0;right:0;top:0;height:${bottom ? 380 : 780}px;background:linear-gradient(to bottom, rgba(7,7,10,.82) 0%, rgba(7,7,10,.32) 55%, rgba(7,7,10,0) 100%)}
+ .botscrim{position:absolute;left:0;right:0;bottom:0;height:${bottom ? 880 : 520}px;background:linear-gradient(to top, ${C.bgDark} 7%, rgba(7,7,10,.86) 32%, rgba(7,7,10,.24) 70%, rgba(7,7,10,0) 100%)}
+ .mast{position:absolute;top:74px;left:72px;right:72px;display:flex;justify-content:space-between;align-items:baseline;z-index:3}
+ .wm{font-family:${F.display};font-weight:700;font-size:42px;letter-spacing:-2px}
+ .wm .r{color:${C.red}} .wm .t{color:${C.cream}}
+ .meta{color:rgba(251,247,241,.62);font-size:20px;letter-spacing:3px;text-transform:uppercase;font-weight:600}
+ .rule{position:absolute;top:150px;left:72px;right:72px;height:1px;background:rgba(255,255,255,.18);z-index:3}
+ .block{position:absolute;left:72px;right:110px;z-index:3;${bottom ? 'bottom:248px' : 'top:206px'}}
+ .kick{display:flex;align-items:center;gap:14px;color:rgba(251,247,241,.72);font-size:22px;letter-spacing:4px;text-transform:uppercase;font-weight:600;margin-bottom:20px}
+ .kick .sq{width:13px;height:13px;background:${C.red};display:block}
+ .h1{color:${C.cream};font-family:${F.display};font-size:108px;line-height:.9;font-weight:700;letter-spacing:-3px;text-transform:lowercase;text-shadow:0 6px 34px rgba(0,0,0,.55)}
+ .h1 .r{color:${C.red}}
+ .sub{color:rgba(251,247,241,.8);font-size:27px;line-height:1.38;font-weight:400;margin-top:22px;max-width:580px;text-shadow:0 2px 16px rgba(0,0,0,.5)}
+ .foot{position:absolute;left:72px;right:72px;bottom:92px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.18);padding-top:30px;z-index:3}
+ .cta{display:inline-flex;align-items:center;gap:13px;background:${C.red};color:#fff;font-size:27px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;padding:20px 40px;border-radius:100px;box-shadow:0 18px 44px rgba(224,37,44,.42)}
+ .site{color:rgba(251,247,241,.62);font-size:22px;letter-spacing:2px;text-transform:uppercase;font-weight:600}
+</style></head><body><div class="ad">
+ <div class="photo"></div><div class="grade"></div>
+ <div class="topscrim"></div><div class="botscrim"></div>
+ <div class="mast"><div class="wm"><span class="r">red</span><span class="t">treat</span></div><div class="meta">Switzerland · Est. 2024</div></div>
+ <div class="rule"></div>
+ <div class="block">
+   ${brief.kicker ? `<div class="kick"><span class="sq"></span>${esc(brief.kicker)}</div>` : ''}
+   <div class="h1">${headline}</div>
+   ${brief.sub ? `<div class="sub">${esc(brief.sub)}</div>` : ''}
+ </div>
+ <div class="foot">${brief.cta ? `<span class="cta">${esc(brief.cta)} →</span>` : '<span></span>'}<span class="site">redtreat.ch</span></div>
+</div></body></html>`;
+}
+
 // HTML → PNG via Playwright/Chromium (plattform-unabhängig, zuverlässig)
 async function renderPNG(html, outPng, fmt) {
   const tmpHtml = path.join(ROOT, 'output', '_tmp_' + path.basename(outPng) + '.html');
@@ -483,4 +535,4 @@ async function main() {
   else { console.error('❌ Render fehlgeschlagen.'); process.exit(3); }
 }
 if (require.main === module) main().catch(e => { console.error('❌', e.message); process.exit(1); });
-module.exports = { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, buildEditorialHTML, renderPNG };
+module.exports = { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, buildEditorialHTML, buildInUseHTML, renderPNG };
