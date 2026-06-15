@@ -13,9 +13,10 @@ const { execFileSync } = require('child_process');
 const brand = require('./brand.config');
 const { lint } = require('./brand-lint');
 const { generate, qcRank } = require('./generate');
-const { buildHTML, buildProductHTML, renderPNG } = require('./render');
+const { buildHTML, buildProductHTML, buildHybridHTML, renderPNG } = require('./render');
 const { renderReel } = require('./reelmaker');
 const { closeBrowser } = require('./browser');
+const { cutoutBackground } = require('./cutout');
 
 const ROOT = __dirname;
 const REFS = path.join(ROOT, 'input', 'refs');
@@ -113,7 +114,8 @@ Dir wird ein FOTO des echten Produkts gezeigt und ein Brief mit den Produkt-Eckd
 Harte Regeln: Display-Copy klein mit Punkt ("dein licht."). KEINE Medizin-/Heilaussagen (heilen/Therapie/Diagnose/Krankheit/Symptom/schmerzfrei). Kein "Made in" (→ "Designed in Switzerland"). Nur EIN Rot. Established 2024. Erfinde KEINE Messwerte/Zahlen — nutze NUR Specs, die im Brief stehen. Wenn eine Spec nicht im Brief steht, lass sie weg.
 Copy: headline genau 2 Zeilen je 1–3 Wörter, klein, mit Punkt; kicker 2–3 Wörter; sub EIN eleganter Nutzen-Satz (≤12 Wörter, kein Heilversprechen); cta 1–2 Wörter; priceLine kurz in GROSSBUCHSTABEN (z.B. "JETZT AUF REDTREAT.CH" oder Aktionspreis falls im Brief).
 specs: GENAU 4 Einträge je { value, label }. value = die Kennzahl/das Merkmal kurz (z.B. "8", "180 mW/cm²", "IPX7", "1 Taste"); label = kurze Erklärung (z.B. "Wellenlängen", "max. Leistung", "wasserfest", "Bedienung"). Nimm die echten Werte aus dem Brief.
-layout: wähle das Design, das am besten zum Brief/Wunsch passt — 'spotlight' (Produkt im Fokus, schwebend, Spec-Karte; Standard), 'editorial' (große Typo links, Foto rechts über volle Höhe; magazinig), 'split' (Plakat: Foto oben, Textblock unten), 'minimal' (sehr reduziert, viel Raum, eine Claim-Zeile). Wenn der Brief einen Stil nennt (z.B. "minimalistisch", "magazine", "plakativ"), richte dich danach.`;
+layout: wähle das Design, das am besten zum Brief/Wunsch passt — 'spotlight' (Produkt im Fokus, schwebend, Spec-Karte; Standard), 'editorial' (große Typo links, Foto rechts über volle Höhe; magazinig), 'split' (Plakat: Foto oben, Textblock unten), 'minimal' (sehr reduziert, viel Raum, eine Claim-Zeile). Wenn der Brief einen Stil nennt (z.B. "minimalistisch", "magazine", "plakativ"), richte dich danach.
+scenePrompt: ein art-directed ENGLISCHER Foto-Prompt für die UMGEBUNG, in die das echte Produkt später montiert wird (Hybrid). Beschreibe einen premium, ruhigen Innenraum mit VIEL freier Fläche in der unteren Bildmitte (wo das Produkt stehen wird); warmes natürliches Licht, edle Materialien (Stein, Holz, Leinen, Glas), Schweizer Ruhe, viel Negativraum oben. WICHTIG: KEIN Produkt, KEINE Geräte, KEINE Personen, kein Text. Ende mit "photorealistic, editorial, empty room, lots of empty floor space in the center, no products, no people, no text".`;
 
 const PRODUCT_SCHEMA = {
   type: 'OBJECT',
@@ -121,10 +123,11 @@ const PRODUCT_SCHEMA = {
     kicker: { type: 'STRING' }, headline: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 2, maxItems: 2 },
     sub: { type: 'STRING' }, cta: { type: 'STRING' }, priceLine: { type: 'STRING' },
     layout: { type: 'STRING', enum: ['spotlight', 'editorial', 'split', 'minimal'] },
+    scenePrompt: { type: 'STRING' },
     specs: { type: 'ARRAY', minItems: 4, maxItems: 4, items: {
       type: 'OBJECT', properties: { value: { type: 'STRING' }, label: { type: 'STRING' } }, required: ['value', 'label'] } },
   },
-  required: ['kicker', 'headline', 'sub', 'cta', 'priceLine', 'layout', 'specs'],
+  required: ['kicker', 'headline', 'sub', 'cta', 'priceLine', 'layout', 'scenePrompt', 'specs'],
 };
 
 function fallbackProductBrief(briefText) {
@@ -133,6 +136,7 @@ function fallbackProductBrief(briefText) {
     headline: ['dein licht.', 'dein moment.'],
     sub: 'Premium Wellness-Licht, designed in Switzerland.',
     cta: 'mehr erfahren.', priceLine: 'JETZT AUF REDTREAT.CH', layout: 'spotlight',
+    scenePrompt: 'A serene premium minimalist interior, warm natural light, stone and wood and linen, calm Swiss atmosphere, large empty floor space in the center, lots of negative space at the top, photorealistic, editorial, empty room, no products, no people, no text',
     specs: [
       { value: 'Swiss', label: 'Design' }, { value: 'Premium', label: 'Materialien' },
       { value: '1 Taste', label: 'Bedienung' }, { value: 'Wellness', label: 'für jeden Tag' },
@@ -209,6 +213,71 @@ async function productMain(briefText, want, makeReels, env) {
   reels.forEach(r => console.log('   🎞️ ', r));
 }
 
+// ───────────────────────── HYBRID-MODUS ─────────────────────────
+// KI generiert eine neue UMGEBUNG (FLUX) — das echte, freigestellte Produkt wird reinmontiert.
+async function hybridMain(briefText, want, makeReels, env) {
+  const fmt = brand.formats.story;
+  const imgs = fs.existsSync(REFS) ? fs.readdirSync(REFS).filter(f => /\.(png|jpe?g|webp)$/i.test(f)).sort() : [];
+  if (!imgs.length) { console.error('❌ Hybrid-Modus: bitte lade ein Produktfoto hoch.'); process.exit(5); }
+
+  // 1) Produkt freistellen (Hintergrund → transparent)
+  console.log('✂️  Stelle das echte Produkt frei …');
+  const cutPng = path.join(CAND, 'cutout.png');
+  try { await cutoutBackground(path.join(REFS, imgs[0]), cutPng); }
+  catch (e) { console.error('❌ Freistellen fehlgeschlagen:', e.message); process.exit(6); }
+
+  // 2) Copy + Szene-Prompt
+  console.log('🎬 Creative Director schreibt Copy + KI-Szene …');
+  const d = await productDirector(briefText, env, cutPng);
+  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}`);
+
+  // 3) KI-Szenen generieren (FLUX, produkt-/personenfrei)
+  const scenePrompt = (d.scenePrompt || 'A serene premium minimalist interior, warm natural light')
+    + ', empty room, lots of empty floor space in the center, no products, no devices, no people, no text';
+  console.log(`🖼️  Generiere ${want} KI-Szenen (FLUX) …`);
+  const scenes = [];
+  for (let i = 0; i < want + 2 && scenes.length < want; i++) {
+    try { scenes.push(await generate(scenePrompt, null, fmt.w, fmt.h, env)); process.stdout.write('.'); }
+    catch { process.stdout.write('x'); }
+  }
+  console.log('');
+  if (!scenes.length) { console.error('❌ Keine KI-Szene generiert (FLUX-Limit?).'); process.exit(3); }
+
+  const briefBase = {
+    format: 'story', logo: 'assets/logo_tx.png', photo: 'studio/cutout.png',
+    kicker: d.kicker, headline: d.headline, sub: d.sub, specs: d.specs,
+    cta: d.cta, store: d.priceLine || 'JETZT AUF REDTREAT.CH',
+  };
+  const { hard } = lint(briefBase); if (hard.length) { console.error('❌ Brand:', hard.join('; ')); process.exit(2); }
+
+  const variants = ['glow', 'warm', 'mono'];
+  console.log(`🎨 Montiere das echte Produkt in ${scenes.length} KI-Szenen …`);
+  const ads = [];
+  for (let k = 0; k < scenes.length; k++) {
+    fs.writeFileSync(path.join(CAND, `scene_${k + 1}.png`), scenes[k]);
+    const brief = { ...briefBase, name: `ad_${k + 1}`, scene: `studio/scene_${k + 1}.png`, bgVariant: variants[k % variants.length] };
+    const outPng = path.join(OUT, `ad_${k + 1}.png`);
+    if (await renderPNG(buildHybridHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
+  }
+  console.log('');
+
+  const reels = [];
+  if (makeReels && ads.length) {
+    console.log('🎞️  Baue Reel (sanfter Zoom) …');
+    for (let i = 0; i < Math.min(2, ads.length); i++) {
+      const mp4 = path.join(REELS, `reel_${i + 1}.mp4`);
+      try { makeReel(ads[i], mp4, i % 2 ? 'pan' : 'zoom'); reels.push(mp4); process.stdout.write(`✓${i + 1} `); }
+      catch (e) { console.warn('   Reel-Fehler:', e.message); }
+    }
+    console.log('');
+  } else if (!makeReels) { console.log('🎞️  Reels übersprungen (deaktiviert).'); }
+
+  await closeBrowser();
+  console.log('\n✅ FERTIG:');
+  ads.forEach(a => console.log('   🖼️ ', a));
+  reels.forEach(r => console.log('   🎞️ ', r));
+}
+
 async function main() {
   const briefText = process.argv[2];
   const want = Math.max(1, Math.min(8, Number(process.argv[3]) || 8));
@@ -217,6 +286,7 @@ async function main() {
   if (!briefText) { console.error('Usage: node studio.js "<brief>" [anzahl=8] [reels=1] [mode=lifestyle|product]'); process.exit(1); }
   const env = loadEnv();
   if (mode === 'product') return productMain(briefText, want, makeReels, env);
+  if (mode === 'hybrid') return hybridMain(briefText, want, makeReels, env);
   const fmt = brand.formats.story;
 
   console.log('🎬 Creative Director liest Referenzen + Brief …');

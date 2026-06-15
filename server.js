@@ -24,8 +24,11 @@ const upload = multer({ storage: multer.diskStorage({
 
 const jobs = {};
 function stageFrom(line, j) {
-  if (line.includes('Produkt-Modus')) j.stage = '📦 Produkt-Modus · dein echtes Foto wird verwendet …';
-  else if (line.includes('Creative Director')) j.stage = '🎬 Creative Director schreibt die Copy …';
+  if (line.includes('frei')) j.stage = '✂️ Echtes Produkt wird freigestellt …';
+  else if (line.includes('Produkt-Modus')) j.stage = '📦 Produkt-Modus · dein echtes Foto wird verwendet …';
+  else if (line.includes('Creative Director')) j.stage = '🎬 Creative Director schreibt Copy & Szene …';
+  else if (line.includes('KI-Szene')) j.stage = '🖼️ KI-Umgebungen werden generiert …';
+  else if (line.includes('Montiere')) j.stage = '🎨 Echtes Produkt wird in die Szene montiert …';
   else if (line.includes('Generiere')) j.stage = '🖼️ Foto-Varianten werden generiert …';
   else if (line.includes('QC')) j.stage = '🔎 Qualitätskontrolle (Anatomie) …';
   else if (line.includes('Baue ') && line.includes('Anzeigen')) j.stage = '🎨 Anzeigen werden gebaut …';
@@ -40,7 +43,7 @@ app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.ar
     clearDir(ADS); clearDir(REELS, /\.mp4$/); clearDir(path.join(ROOT, 'input', 'studio'));
 
     const reelsFlag = (req.body.reels === '1' || req.body.reels === 'on') ? '1' : '0';
-    const mode = (req.body.mode === 'product') ? 'product' : 'lifestyle';
+    const mode = ['product', 'hybrid'].includes(req.body.mode) ? req.body.mode : 'lifestyle';
     const id = 'job_' + Date.now();
     const j = jobs[id] = { stage: '⏳ Startet …', done: false, error: null, log: '' };
     const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count), reelsFlag, mode], { cwd: ROOT });
@@ -48,8 +51,8 @@ app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.ar
     child.stderr.on('data', d => { j.log += d; });
     child.on('close', () => {
       const adsN = fs.existsSync(ADS) ? fs.readdirSync(ADS).filter(f => /\.png$/.test(f)).length : 0;
-      if (!adsN) j.error = mode === 'product'
-        ? 'Keine Anzeige erzeugt – hast du ein Produktfoto hochgeladen?'
+      if (!adsN) j.error = (mode === 'product' || mode === 'hybrid')
+        ? 'Keine Anzeige erzeugt – hast du ein Produktfoto hochgeladen? (Hybrid braucht zudem freies FLUX-Kontingent)'
         : 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
       j.stage = '✅ Fertig'; j.done = true;
     });
@@ -124,12 +127,16 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
    <label>2 · Was brauchst du? (Brief)</label>
    <textarea id="brief" placeholder="z.B. Eine ruhige Anzeige zum Thema Pilates am Morgen, im Stil der hochgeladenen Bilder, edel und reduziert."></textarea>
    <div class="row" style="margin-top:18px">
-     <div><label>Modus</label><label class="chk"><input type="checkbox" id="product"> 📦 Produktfoto-Modus</label></div>
+     <div><label>Modus</label><select id="mode">
+       <option value="lifestyle">KI-Bilder (Lifestyle)</option>
+       <option value="hybrid">Hybrid: KI-Szene + echtes Produkt</option>
+       <option value="product">Nur echtes Produktfoto</option>
+     </select></div>
      <div><label>Anzahl Anzeigen</label><select id="count"><option>8</option><option>6</option><option>4</option><option>3</option></select></div>
      <div><label>Reels</label><label class="chk"><input type="checkbox" id="reels"> auch 2 Reels <span style="color:#9a9aa2">(langsam auf Gratis)</span></label></div>
      <button id="go">Generieren</button>
    </div>
-   <div class="phint" id="phint">📦 <b>Produktfoto-Modus:</b> dein <b>erstes hochgeladenes Bild</b> wird als echtes Produkt verwendet — es wird <b>kein</b> Produkt von der KI erfunden. Schreib die echten Eckdaten in den Brief, z.B.: „SolisPanel NextGen, 8 Wellenlängen (415–850 nm), max 180 mW/cm², wasserfest, 1-Tasten-Bedienung, Wellness".</div>
+   <div class="phint" id="phint"></div>
    <div class="status" id="status"></div>
  </div>
 
@@ -149,17 +156,22 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
  drop.addEventListener('drop',ev=>{picked=[...ev.dataTransfer.files].filter(f=>f.type.startsWith('image'));render();});
 
  const go=document.getElementById('go'),status=document.getElementById('status'),results=document.getElementById('results');
- const product=document.getElementById('product'),phint=document.getElementById('phint');
- product.onchange=()=>{phint.style.display=product.checked?'block':'none';};
+ const mode=document.getElementById('mode'),phint=document.getElementById('phint');
+ const HINTS={
+   hybrid:'🪄 <b>Hybrid:</b> die KI baut eine <b>neue Umgebung</b>, dein <b>echtes Produkt</b> (= erstes hochgeladenes Bild) wird sauber reinmontiert. Am besten ein Foto auf <b>weißem/ruhigem Hintergrund</b>. Echte Eckdaten in den Brief.',
+   product:'📦 <b>Produktfoto:</b> dein <b>erstes hochgeladenes Bild</b> wird als echtes Produkt verwendet — die KI erfindet <b>kein</b> Produkt. Echte Eckdaten in den Brief, z.B. „8 Wellenlängen, 180 mW/cm², 1-Tasten-Bedienung".'
+ };
+ function syncMode(){const h=HINTS[mode.value];if(h){phint.innerHTML=h;phint.style.display='block';}else{phint.style.display='none';}}
+ mode.onchange=syncMode;syncMode();
  go.onclick=async()=>{
    const brief=document.getElementById('brief').value.trim();
    if(!brief){alert('Bitte einen Brief schreiben.');return;}
-   if(product.checked&&!picked.length){alert('Produktfoto-Modus: bitte lade zuerst dein echtes Produktfoto hoch.');return;}
+   if((mode.value==='product'||mode.value==='hybrid')&&!picked.length){alert('Dieser Modus braucht dein echtes Produktfoto — bitte lade es zuerst hoch.');return;}
    go.disabled=true;results.style.display='none';status.style.display='block';
    status.innerHTML='<span class="spin"></span> Startet …';
    const fd=new FormData();fd.append('brief',brief);fd.append('count',document.getElementById('count').value);
    fd.append('reels',document.getElementById('reels').checked?'1':'0');
-   fd.append('mode',product.checked?'product':'lifestyle');
+   fd.append('mode',mode.value);
    picked.forEach(f=>fd.append('refs',f));
    let id;
    try{const r=await fetch('/generate',{method:'POST',body:fd});const j=await r.json();if(j.error)throw new Error(j.error);id=j.id;}

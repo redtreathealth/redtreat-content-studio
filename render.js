@@ -279,6 +279,54 @@ function buildProductHTML(brief) {
   return (PRODUCT_LAYOUTS[brief.layout] || _layoutSpotlight)(x);
 }
 
+/**
+ * HYBRID-MODUS: KI-generierte Szene (brief.scene) + freigestelltes echtes Produkt (brief.photo, transparent)
+ * werden komponiert — neue Bildwelt aus der KI, echtes Produkt mit Kontaktschatten reinmontiert.
+ * Vielfalt entsteht über verschiedene KI-Szenen pro Lauf.
+ */
+function buildHybridHTML(brief) {
+  const C = brand.colors, F = brand.fonts;
+  const x = {
+    C, F, brief,
+    fmt: brand.formats[brief.format || 'story'],
+    logo: fileUrl(brief.logo || brand.logo.white),
+    cabin: fileUrl(brand.fonts.files.Cabin),
+    outfit: fileUrl(brand.fonts.files.Outfit),
+    bg: C.bgDark,
+    headline: (brief.headline || []).map((line, i) =>
+      i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)).join('<br>'),
+  };
+  const scene = fileUrl(path.join('input', brief.scene));
+  const cut = fileUrl(path.join('input', brief.photo));
+  const tint = { glow: 'rgba(224,37,44,.10)', warm: 'rgba(184,132,26,.12)', mono: 'rgba(255,255,255,.05)' }[brief.bgVariant || 'glow'];
+  const strip = (brief.specs || []).slice(0, 4).map(s => `<div class="scol"><div class="sv">${esc(s.value || '')}</div><div class="sl">${esc(s.label || '')}</div></div>`).join('');
+  const css = `
+ .scene{position:absolute;inset:0;background:${C.bgDark} url('${scene}') center/cover no-repeat}
+ .grade{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 38%, ${tint}, transparent 60%), radial-gradient(150% 100% at 50% 122%, rgba(0,0,0,.55), transparent 55%);mix-blend-mode:multiply;opacity:.92}
+ .contact{position:absolute;left:50%;transform:translateX(-50%);bottom:388px;width:540px;height:92px;background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.62), transparent 70%);filter:blur(11px)}
+ .cut{position:absolute;left:50%;transform:translateX(-50%);bottom:392px;height:1044px;object-fit:contain;filter:drop-shadow(0 38px 52px rgba(0,0,0,.5))}
+ .topscrim{position:absolute;left:0;right:0;top:0;height:620px;background:linear-gradient(to bottom, rgba(7,7,10,.74) 0%, rgba(7,7,10,.3) 44%, rgba(7,7,10,0) 100%)}
+ .botscrim{position:absolute;left:0;right:0;bottom:0;height:760px;background:linear-gradient(to top, ${C.bgDark} 7%, rgba(7,7,10,.92) 30%, rgba(7,7,10,.36) 64%, rgba(7,7,10,0) 100%)}
+ .kick{position:absolute;top:300px;left:62px}
+ .h1{position:absolute;top:332px;left:58px;right:110px;color:${C.cream};font-family:${F.display};font-size:104px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase;text-shadow:0 6px 30px rgba(0,0,0,.5)}
+ .strip{position:absolute;left:64px;right:64px;bottom:298px;display:flex}
+ .scol{flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.15);padding:0 6px}
+ .scol:first-child{border-left:0}
+ .scol .sv{color:${C.cream};font-size:40px;font-weight:300;letter-spacing:-1px;line-height:1}
+ .scol .sl{color:rgba(251,247,241,.6);font-size:18px;letter-spacing:.6px;margin-top:7px;font-weight:500;line-height:1.15}
+ .cta{position:absolute;bottom:120px;left:0;right:0;text-align:center}
+ .store{position:absolute;bottom:74px;left:0;right:0;text-align:center}`;
+  const body = `
+ <div class="scene"></div><div class="grade"></div>
+ <div class="contact"></div><img class="cut" src="${cut}">
+ <div class="topscrim"></div><div class="botscrim"></div>
+ <img class="logo" src="${x.logo}">${_kickEl(brief)}
+ <div class="h1">${x.headline}</div>
+ <div class="strip">${strip}</div>
+ ${_ctaEl(brief)}${_storeEl(brief)}`;
+  return _wrap(x, css, body);
+}
+
 // HTML → PNG via Playwright/Chromium (plattform-unabhängig, zuverlässig)
 async function renderPNG(html, outPng, fmt) {
   const tmpHtml = path.join(ROOT, 'output', '_tmp_' + path.basename(outPng) + '.html');
@@ -324,4 +372,4 @@ async function main() {
   else { console.error('❌ Render fehlgeschlagen.'); process.exit(3); }
 }
 if (require.main === module) main().catch(e => { console.error('❌', e.message); process.exit(1); });
-module.exports = { buildHTML, buildProductHTML, renderPNG };
+module.exports = { buildHTML, buildProductHTML, buildHybridHTML, renderPNG };
