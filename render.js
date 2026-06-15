@@ -119,79 +119,164 @@ function buildHTML(brief) {
 }
 
 /**
- * PRODUKT-MODUS: echtes Produktfoto als Hero + Spec-Karte (statt Lifestyle-Score).
- * Für Hardware (z.B. SolisPanel) — die App erfindet KEIN Produkt, sie inszeniert das echte Foto.
- * Erwartet zusätzlich: brief.specs = [{ value, label }], optional brief.bgVariant ('glow'|'warm'|'mono').
+ * PRODUKT-MODUS: echtes Produktfoto inszenieren — mit MEHREREN, klar unterschiedlichen Layouts.
+ * Der Brief steuert das Design über brief.layout; pro Lauf werden verschiedene Layouts gemischt.
+ *   brief.layout    ∈ 'spotlight' | 'editorial' | 'split' | 'minimal'   (Default 'spotlight')
+ *   brief.bgVariant ∈ 'glow' | 'warm' | 'mono'
+ *   brief.specs     = [{ value, label }]
+ * Marke (Farben/Schrift/Logo/keine Claims) bleibt in JEDEM Layout fix → kann nicht off-brand werden.
  */
-function buildProductHTML(brief) {
-  const C = brand.colors, F = brand.fonts;
-  const fmt = brand.formats[brief.format || 'story'];
-  const product = fileUrl(path.join('input', brief.photo));
-  const logo = fileUrl(brief.logo || brand.logo.white);
-  const cabin = fileUrl(brand.fonts.files.Cabin);
-  const outfit = fileUrl(brand.fonts.files.Outfit);
+const PROD_BG = {
+  glow: (C) => `radial-gradient(78% 52% at 50% 40%, rgba(224,37,44,.17), transparent 62%), ${C.bgDark}`,
+  warm: (C) => `radial-gradient(92% 58% at 50% 36%, rgba(184,132,26,.16), transparent 60%), linear-gradient(180deg,#110d0c,${C.bgDark})`,
+  mono: (C) => `radial-gradient(80% 55% at 50% 38%, rgba(255,255,255,.07), transparent 60%), ${C.bgDark}`,
+};
+const _grainCSS = `.grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}`;
 
-  const headline = (brief.headline || []).map((line, i) =>
-    i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)
-  ).join('<br>');
+const _kickEl = (b) => b.kicker ? `<div class="kick"><span class="ln"></span>${esc(b.kicker)}</div>` : '';
+const _ctaEl = (b) => b.cta ? `<div class="cta"><span class="pill">${esc(b.cta)} ◆</span></div>` : '';
+const _storeEl = (b) => b.store ? `<div class="store mono">${esc(b.store)}</div>` : '';
+const _subEl = (b, cls) => b.sub ? `<div class="${cls}">${esc(b.sub)}</div>` : '';
+const _specGrid = (sp) => (sp || []).slice(0, 4).map(s => `<div class="spec"><div class="sv">${esc(s.value || '')}</div><div class="sl">${esc(s.label || '')}</div></div>`).join('');
+const _specList = (sp) => (sp || []).slice(0, 4).map(s => `<div class="lrow"><span class="lv">${esc(s.value || '')}</span><span class="ll">${esc(s.label || '')}</span></div>`).join('');
+const _specInline = (sp) => (sp || []).slice(0, 4).map(s => `<b>${esc(s.value || '')}</b> ${esc(s.label || '')}`).join('<span class="dot">·</span>');
 
-  const specs = (brief.specs || []).slice(0, 4).map(s =>
-    `<div class="spec"><div class="sv">${esc(s.value || '')}</div><div class="sl">${esc(s.label || '')}</div></div>`
-  ).join('');
-
-  const bg = {
-    glow: `radial-gradient(78% 52% at 50% 40%, rgba(224,37,44,.17), transparent 62%), ${C.bgDark}`,
-    warm: `radial-gradient(90% 58% at 50% 38%, rgba(184,132,26,.15), transparent 60%), linear-gradient(180deg,#110d0c,${C.bgDark})`,
-    mono: `radial-gradient(80% 55% at 50% 38%, rgba(255,255,255,.07), transparent 60%), ${C.bgDark}`,
-  }[brief.bgVariant || 'glow'];
-
+// Gemeinsamer Rahmen: Reset, Canvas, Logo/Kicker/CTA/Store-Grundstil, Grain. Layout liefert eigenes CSS + Body.
+function _wrap(x, css, body) {
   return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
- @font-face{font-family:'Cabin';src:url('${cabin}') format('truetype');font-weight:100 900;font-style:normal}
- @font-face{font-family:'Outfit';src:url('${outfit}') format('truetype');font-weight:100 900;font-style:normal}
+ @font-face{font-family:'Cabin';src:url('${x.cabin}') format('truetype');font-weight:100 900;font-style:normal}
+ @font-face{font-family:'Outfit';src:url('${x.outfit}') format('truetype');font-weight:100 900;font-style:normal}
  html,body{margin:0;padding:0}*{box-sizing:border-box}
- .ad{position:relative;width:${fmt.w}px;height:${fmt.h}px;overflow:hidden;background:${bg};font-family:${F.body}}
- .mono{font-family:${F.body}}
- .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;
-   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
- .logo{position:absolute;top:60px;left:58px;width:236px;height:auto;filter:drop-shadow(0 3px 16px rgba(0,0,0,.5))}
- .kick{position:absolute;top:300px;left:62px;display:flex;align-items:center;gap:16px;color:rgba(251,247,241,.85);font-size:22px;letter-spacing:6px;font-weight:600;text-transform:uppercase}
- .kick .ln{width:54px;height:2px;background:${C.red};display:block}
- .h1{position:absolute;top:330px;left:58px;right:110px;color:${C.cream};font-family:${F.display};font-size:104px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase;text-shadow:0 6px 30px rgba(0,0,0,.45)}
- .h1 .r{color:${C.red}}
- .spot{position:absolute;top:556px;left:50%;transform:translateX(-50%);width:1010px;height:680px;
-   background:radial-gradient(48% 44% at 50% 46%, rgba(255,255,255,.11), transparent 70%)}
- .floor{position:absolute;top:1192px;left:50%;transform:translateX(-50%);width:660px;height:96px;
-   background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.55), transparent 70%);filter:blur(9px)}
- .hero{position:absolute;top:560px;left:50%;transform:translateX(-50%);width:902px;height:672px;object-fit:contain;
-   filter:drop-shadow(0 48px 66px rgba(0,0,0,.62))}
- .pcard{position:absolute;left:78px;right:78px;top:1306px;border-radius:36px;padding:32px 40px 30px;
-   background:rgba(13,11,13,.42);border:1px solid rgba(255,255,255,.15);
-   backdrop-filter:blur(28px) saturate(125%);-webkit-backdrop-filter:blur(28px) saturate(125%);
-   box-shadow:0 54px 120px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.09)}
+ .ad{position:relative;width:${x.fmt.w}px;height:${x.fmt.h}px;overflow:hidden;background:${x.bg};font-family:${x.F.body}}
+ .mono{font-family:${x.F.body}}
+ .logo{position:absolute;top:60px;left:58px;width:228px;height:auto;z-index:5;filter:drop-shadow(0 3px 16px rgba(0,0,0,.5))}
+ .kick{display:flex;align-items:center;gap:16px;color:rgba(251,247,241,.85);font-size:22px;letter-spacing:6px;font-weight:600;text-transform:uppercase}
+ .kick .ln{width:54px;height:2px;background:${x.C.red};display:block}
+ .h1 .r{color:${x.C.red}}
+ .cta .pill{display:inline-flex;align-items:center;gap:14px;background:${x.C.red};color:#fff;font-size:31px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:25px 52px;border-radius:100px;box-shadow:0 24px 54px rgba(224,37,44,.5)}
+ .store{color:rgba(251,247,241,.62);font-size:21px;letter-spacing:3px;font-weight:500}
+ ${_grainCSS}
+ ${css}
+</style></head><body><div class="ad">${body}<div class="grain"></div></div></body></html>`;
+}
+
+// 1) SPOTLIGHT — Produkt schwebt zentral, Glas-Spec-Karte darunter.
+function _layoutSpotlight(x) {
+  const css = `
+ .kick{position:absolute;top:300px;left:62px}
+ .h1{position:absolute;top:330px;left:58px;right:110px;color:${x.C.cream};font-family:${x.F.display};font-size:104px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase;text-shadow:0 6px 30px rgba(0,0,0,.45)}
+ .spot{position:absolute;top:556px;left:50%;transform:translateX(-50%);width:1010px;height:680px;background:radial-gradient(48% 44% at 50% 46%, rgba(255,255,255,.11), transparent 70%)}
+ .floor{position:absolute;top:1192px;left:50%;transform:translateX(-50%);width:660px;height:96px;background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.55), transparent 70%);filter:blur(9px)}
+ .hero{position:absolute;top:560px;left:50%;transform:translateX(-50%);width:902px;height:672px;object-fit:contain;filter:drop-shadow(0 48px 66px rgba(0,0,0,.62))}
+ .pcard{position:absolute;left:78px;right:78px;top:1306px;border-radius:36px;padding:32px 40px 30px;background:rgba(13,11,13,.42);border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(28px) saturate(125%);box-shadow:0 54px 120px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.09)}
  .psub{color:rgba(251,247,241,.74);font-size:27px;font-weight:500;line-height:1.32;margin-bottom:24px}
  .specs{display:grid;grid-template-columns:1fr 1fr;gap:22px 30px}
  .spec{border-left:2px solid rgba(224,37,44,.65);padding-left:18px}
- .spec .sv{color:${C.cream};font-size:46px;font-weight:300;letter-spacing:-1px;line-height:1}
+ .spec .sv{color:${x.C.cream};font-size:46px;font-weight:300;letter-spacing:-1px;line-height:1}
  .spec .sl{color:rgba(251,247,241,.55);font-size:21px;letter-spacing:1px;margin-top:6px;font-weight:500}
  .cta{position:absolute;bottom:122px;left:0;right:0;text-align:center}
- .cta .pill{display:inline-flex;align-items:center;gap:14px;background:${C.red};color:#fff;font-size:31px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:25px 52px;border-radius:100px;box-shadow:0 24px 54px rgba(224,37,44,.5)}
- .store{position:absolute;bottom:76px;left:0;right:0;text-align:center;color:rgba(251,247,241,.62);font-size:21px;letter-spacing:3px;font-weight:500}
-</style></head><body>
- <div class="ad">
-  <img class="logo" src="${logo}">
-  ${brief.kicker ? `<div class="kick"><span class="ln"></span>${esc(brief.kicker)}</div>` : ''}
-  <div class="h1">${headline}</div>
-  <div class="spot"></div><div class="floor"></div>
-  <img class="hero" src="${product}">
-  <div class="pcard">
-    ${brief.sub ? `<div class="psub">${esc(brief.sub)}</div>` : ''}
-    <div class="specs">${specs}</div>
-  </div>
-  ${brief.cta ? `<div class="cta"><span class="pill">${esc(brief.cta)} ◆</span></div>` : ''}
-  ${brief.store ? `<div class="store mono">${esc(brief.store)}</div>` : ''}
-  <div class="grain"></div>
- </div>
-</body></html>`;
+ .store{position:absolute;bottom:76px;left:0;right:0;text-align:center}`;
+  const body = `
+ <img class="logo" src="${x.logo}">${_kickEl(x.brief)}
+ <div class="h1">${x.headline}</div>
+ <div class="spot"></div><div class="floor"></div>
+ <img class="hero" src="${x.product}">
+ <div class="pcard">${_subEl(x.brief, 'psub')}<div class="specs">${_specGrid(x.brief.specs)}</div></div>
+ ${_ctaEl(x.brief)}${_storeEl(x.brief)}`;
+  return _wrap(x, css, body);
+}
+
+// 2) EDITORIAL — vertikaler Split: links große Typo + Spec-Liste, rechts das Foto über volle Höhe.
+function _layoutEditorial(x) {
+  const css = `
+ .photo{position:absolute;top:0;right:0;width:548px;height:1920px;background:${x.C.bgDark} url('${x.product}') center/cover no-repeat}
+ .lfade{position:absolute;top:0;right:520px;width:230px;height:1920px;background:linear-gradient(to left, rgba(7,7,10,0), ${x.C.bgDark} 86%)}
+ .rfade{position:absolute;top:0;right:0;width:548px;height:1920px;background:linear-gradient(to right, rgba(7,7,10,0) 58%, rgba(7,7,10,.5))}
+ .kick{position:absolute;top:300px;left:62px}
+ .h1{position:absolute;top:338px;left:58px;width:470px;color:${x.C.cream};font-family:${x.F.display};font-size:106px;line-height:.9;font-weight:700;letter-spacing:-3px;text-transform:lowercase}
+ .esub{position:absolute;top:initial;left:62px;width:430px;color:rgba(251,247,241,.72);font-size:26px;font-weight:500;line-height:1.34;top:792px}
+ .elist{position:absolute;top:1010px;left:62px;width:440px;display:flex;flex-direction:column;gap:22px}
+ .lrow{display:flex;align-items:baseline;gap:14px;border-left:2px solid rgba(224,37,44,.65);padding-left:16px}
+ .lrow .lv{color:${x.C.cream};font-size:40px;font-weight:300;letter-spacing:-1px;line-height:1}
+ .lrow .ll{color:rgba(251,247,241,.6);font-size:22px;font-weight:500}
+ .cta{position:absolute;bottom:150px;left:58px;text-align:left}
+ .store{position:absolute;bottom:104px;left:62px}`;
+  const body = `
+ <div class="photo"></div><div class="rfade"></div><div class="lfade"></div>
+ <img class="logo" src="${x.logo}">${_kickEl(x.brief)}
+ <div class="h1">${x.headline}</div>
+ ${_subEl(x.brief, 'esub')}
+ <div class="elist">${_specList(x.brief.specs)}</div>
+ ${_ctaEl(x.brief)}${_storeEl(x.brief)}`;
+  return _wrap(x, css, body);
+}
+
+// 3) SPLIT — Plakat: Foto vollflächig oben, dunkler Textblock unten (Headline + Specs + CTA).
+function _layoutSplit(x) {
+  const css = `
+ .photo{position:absolute;top:0;left:0;right:0;height:1080px;background:${x.C.bgDark} url('${x.product}') center/cover no-repeat}
+ .pfade{position:absolute;top:0;left:0;right:0;height:1080px;background:linear-gradient(to bottom, transparent 52%, ${x.C.bgDark} 99%)}
+ .kick{position:absolute;top:1142px;left:62px}
+ .h1{position:absolute;top:1178px;left:58px;right:80px;color:${x.C.cream};font-family:${x.F.display};font-size:98px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase}
+ .psub{position:absolute;top:1376px;left:62px;right:90px;color:rgba(251,247,241,.7);font-size:25px;font-weight:500;line-height:1.3}
+ .specs{position:absolute;top:1476px;left:62px;right:62px;display:grid;grid-template-columns:1fr 1fr;gap:20px 30px}
+ .spec{border-left:2px solid rgba(224,37,44,.65);padding-left:18px}
+ .spec .sv{color:${x.C.cream};font-size:44px;font-weight:300;letter-spacing:-1px;line-height:1}
+ .spec .sl{color:rgba(251,247,241,.55);font-size:20px;letter-spacing:1px;margin-top:6px;font-weight:500}
+ .cta{position:absolute;bottom:120px;left:58px;text-align:left}
+ .store{position:absolute;bottom:74px;left:62px}`;
+  const body = `
+ <div class="photo"></div><div class="pfade"></div>
+ <img class="logo" src="${x.logo}">${_kickEl(x.brief)}
+ <div class="h1">${x.headline}</div>
+ ${_subEl(x.brief, 'psub')}
+ <div class="specs">${_specGrid(x.brief.specs)}</div>
+ ${_ctaEl(x.brief)}${_storeEl(x.brief)}`;
+  return _wrap(x, css, body);
+}
+
+// 4) MINIMAL — sehr reduziert: kleines Produkt, viel Raum, zentrierte Claim-Zeile, dünne Spec-Zeile, Outline-CTA.
+function _layoutMinimal(x) {
+  const css = `
+ .spot{position:absolute;top:430px;left:50%;transform:translateX(-50%);width:760px;height:620px;background:radial-gradient(46% 44% at 50% 48%, rgba(224,37,44,.13), transparent 70%)}
+ .hero{position:absolute;top:470px;left:50%;transform:translateX(-50%);width:560px;height:540px;object-fit:contain;filter:drop-shadow(0 40px 60px rgba(0,0,0,.6))}
+ .kick{position:absolute;top:1132px;left:0;right:0;justify-content:center}
+ .h1{position:absolute;top:1172px;left:0;right:0;text-align:center;color:${x.C.cream};font-family:${x.F.display};font-size:96px;line-height:.95;font-weight:700;letter-spacing:-3px;text-transform:lowercase}
+ .msub{position:absolute;top:1376px;left:90px;right:90px;text-align:center;color:rgba(251,247,241,.66);font-size:26px;font-weight:400;line-height:1.3}
+ .istrip{position:absolute;top:1496px;left:40px;right:40px;text-align:center;color:rgba(251,247,241,.8);font-size:24px;letter-spacing:.3px}
+ .istrip b{color:${x.C.cream};font-weight:600}
+ .istrip .dot{color:${x.C.red};margin:0 14px;font-weight:700}
+ .cta{position:absolute;bottom:150px;left:0;right:0;text-align:center}
+ .cta .pill{background:transparent;color:${x.C.cream};border:1.5px solid rgba(255,255,255,.4);box-shadow:none}
+ .store{position:absolute;bottom:96px;left:0;right:0;text-align:center}`;
+  const body = `
+ <img class="logo" src="${x.logo}">
+ <div class="spot"></div>
+ <img class="hero" src="${x.product}">
+ ${_kickEl(x.brief)}
+ <div class="h1">${x.headline}</div>
+ ${_subEl(x.brief, 'msub')}
+ <div class="istrip">${_specInline(x.brief.specs)}</div>
+ ${_ctaEl(x.brief)}${_storeEl(x.brief)}`;
+  return _wrap(x, css, body);
+}
+
+const PRODUCT_LAYOUTS = { spotlight: _layoutSpotlight, editorial: _layoutEditorial, split: _layoutSplit, minimal: _layoutMinimal };
+
+function buildProductHTML(brief) {
+  const C = brand.colors, F = brand.fonts;
+  const x = {
+    C, F, brief,
+    fmt: brand.formats[brief.format || 'story'],
+    product: fileUrl(path.join('input', brief.photo)),
+    logo: fileUrl(brief.logo || brand.logo.white),
+    cabin: fileUrl(brand.fonts.files.Cabin),
+    outfit: fileUrl(brand.fonts.files.Outfit),
+    bg: (PROD_BG[brief.bgVariant] || PROD_BG.glow)(C),
+    headline: (brief.headline || []).map((line, i) =>
+      i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)).join('<br>'),
+  };
+  return (PRODUCT_LAYOUTS[brief.layout] || _layoutSpotlight)(x);
 }
 
 // HTML → PNG via Playwright/Chromium (plattform-unabhängig, zuverlässig)

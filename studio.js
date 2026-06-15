@@ -112,17 +112,19 @@ const PRODUCT_SYSTEM = `Du bist Creative Director einer Weltklasse-Luxus-Markena
 Dir wird ein FOTO des echten Produkts gezeigt und ein Brief mit den Produkt-Eckdaten. Das Foto wird unverändert als Hero verwendet — DU erfindest kein Produkt, du schreibst nur die Marken-Copy + ordnest die Specs.
 Harte Regeln: Display-Copy klein mit Punkt ("dein licht."). KEINE Medizin-/Heilaussagen (heilen/Therapie/Diagnose/Krankheit/Symptom/schmerzfrei). Kein "Made in" (→ "Designed in Switzerland"). Nur EIN Rot. Established 2024. Erfinde KEINE Messwerte/Zahlen — nutze NUR Specs, die im Brief stehen. Wenn eine Spec nicht im Brief steht, lass sie weg.
 Copy: headline genau 2 Zeilen je 1–3 Wörter, klein, mit Punkt; kicker 2–3 Wörter; sub EIN eleganter Nutzen-Satz (≤12 Wörter, kein Heilversprechen); cta 1–2 Wörter; priceLine kurz in GROSSBUCHSTABEN (z.B. "JETZT AUF REDTREAT.CH" oder Aktionspreis falls im Brief).
-specs: GENAU 4 Einträge je { value, label }. value = die Kennzahl/das Merkmal kurz (z.B. "8", "180 mW/cm²", "IPX7", "1 Taste"); label = kurze Erklärung (z.B. "Wellenlängen", "max. Leistung", "wasserfest", "Bedienung"). Nimm die echten Werte aus dem Brief.`;
+specs: GENAU 4 Einträge je { value, label }. value = die Kennzahl/das Merkmal kurz (z.B. "8", "180 mW/cm²", "IPX7", "1 Taste"); label = kurze Erklärung (z.B. "Wellenlängen", "max. Leistung", "wasserfest", "Bedienung"). Nimm die echten Werte aus dem Brief.
+layout: wähle das Design, das am besten zum Brief/Wunsch passt — 'spotlight' (Produkt im Fokus, schwebend, Spec-Karte; Standard), 'editorial' (große Typo links, Foto rechts über volle Höhe; magazinig), 'split' (Plakat: Foto oben, Textblock unten), 'minimal' (sehr reduziert, viel Raum, eine Claim-Zeile). Wenn der Brief einen Stil nennt (z.B. "minimalistisch", "magazine", "plakativ"), richte dich danach.`;
 
 const PRODUCT_SCHEMA = {
   type: 'OBJECT',
   properties: {
     kicker: { type: 'STRING' }, headline: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 2, maxItems: 2 },
     sub: { type: 'STRING' }, cta: { type: 'STRING' }, priceLine: { type: 'STRING' },
+    layout: { type: 'STRING', enum: ['spotlight', 'editorial', 'split', 'minimal'] },
     specs: { type: 'ARRAY', minItems: 4, maxItems: 4, items: {
       type: 'OBJECT', properties: { value: { type: 'STRING' }, label: { type: 'STRING' } }, required: ['value', 'label'] } },
   },
-  required: ['kicker', 'headline', 'sub', 'cta', 'priceLine', 'specs'],
+  required: ['kicker', 'headline', 'sub', 'cta', 'priceLine', 'layout', 'specs'],
 };
 
 function fallbackProductBrief(briefText) {
@@ -130,7 +132,7 @@ function fallbackProductBrief(briefText) {
     kicker: 'designed in switzerland',
     headline: ['dein licht.', 'dein moment.'],
     sub: 'Premium Wellness-Licht, designed in Switzerland.',
-    cta: 'mehr erfahren.', priceLine: 'JETZT AUF REDTREAT.CH',
+    cta: 'mehr erfahren.', priceLine: 'JETZT AUF REDTREAT.CH', layout: 'spotlight',
     specs: [
       { value: 'Swiss', label: 'Design' }, { value: 'Premium', label: 'Materialien' },
       { value: '1 Taste', label: 'Bedienung' }, { value: 'Wellness', label: 'für jeden Tag' },
@@ -167,7 +169,7 @@ async function productMain(briefText, want, makeReels, env) {
 
   console.log('🎬 Creative Director schreibt die Produkt-Copy …');
   const d = await productDirector(briefText, env, productPng);
-  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}`);
+  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}  ·  Start-Layout: ${d.layout || 'spotlight'}`);
 
   const briefBase = {
     format: 'story', logo: 'assets/logo_tx.png', photo: 'studio/product.png',
@@ -176,13 +178,17 @@ async function productMain(briefText, want, makeReels, env) {
   };
   const { hard } = lint(briefBase); if (hard.length) { console.error('❌ Brand:', hard.join('; ')); process.exit(2); }
 
-  const variants = ['glow', 'warm', 'mono', 'glow', 'warm', 'mono', 'glow', 'warm'];
-  console.log(`🎨 Baue ${want} Produkt-Anzeigen …`);
+  // Jede Anzeige bekommt ein ANDERES Layout (startend beim Director-Vorschlag) → echte Design-Vielfalt.
+  const LAYOUTS = ['spotlight', 'editorial', 'split', 'minimal'];
+  let start = LAYOUTS.indexOf(d.layout); if (start < 0) start = 0;
+  const variants = ['glow', 'warm', 'mono'];
+  console.log(`🎨 Baue ${want} Produkt-Anzeigen (verschiedene Designs) …`);
   const ads = [];
   for (let k = 0; k < want; k++) {
-    const brief = { ...briefBase, name: `ad_${k + 1}`, bgVariant: variants[k % variants.length] };
+    const layout = LAYOUTS[(start + k) % LAYOUTS.length];
+    const brief = { ...briefBase, name: `ad_${k + 1}`, layout, bgVariant: variants[k % variants.length] };
     const outPng = path.join(OUT, `ad_${k + 1}.png`);
-    if (await renderPNG(buildProductHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
+    if (await renderPNG(buildProductHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1}:${layout} `); }
   }
   console.log('');
 
