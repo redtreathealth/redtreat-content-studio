@@ -13,7 +13,7 @@ const { execFileSync } = require('child_process');
 const brand = require('./brand.config');
 const { lint } = require('./brand-lint');
 const { generate, qcRank } = require('./generate');
-const { buildHTML, renderPNG } = require('./render');
+const { buildHTML, buildProductHTML, renderPNG } = require('./render');
 const { renderReel } = require('./reelmaker');
 const { closeBrowser } = require('./browser');
 
@@ -33,6 +33,26 @@ function loadEnv() {
   return { ...env, ...process.env };
 }
 const mimeOf = (b) => (b[0] === 0xFF && b[1] === 0xD8) ? 'image/jpeg' : 'image/png';
+
+// Gemini-Aufruf mit Retry + Modell-Fallback: probiert nacheinander verfügbare Modelle.
+// Transiente Fehler (429/500/503 = überlastet/Quota-Spitze) → kurz warten & nächstes Modell.
+async function callGemini(env, body, tries = 2) {
+  const key = env.GEMINI_API_KEY; if (!key) throw new Error('GEMINI_API_KEY fehlt');
+  const models = [env.TEXT_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].filter(Boolean);
+  const seen = new Set(); let lastErr = 'unbekannt';
+  for (const m of models) {
+    if (seen.has(m)) continue; seen.add(m);
+    for (let a = 0; a < tries; a++) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (r.ok) return r.json();
+      lastErr = `${m} ${r.status}`;
+      if (![429, 500, 503].includes(r.status)) { a = tries; break; } // harter Fehler → Modellwechsel bringt evtl. trotzdem was, aber nicht weiter retrien
+      await new Promise(s => setTimeout(s, 1200 * (a + 1)));
+    }
+  }
+  throw new Error('Gemini nicht verfügbar (' + lastErr + ')');
+}
 
 const SYSTEM = `Du bist Creative Director einer Weltklasse-Luxus-Markenagentur (30+ Jahre) für redtreat — premium Schweizer Longevity- & Wellness-Marke (App + Lichttherapie). WELLNESS, niemals Medizin.
 Stimme: modern, quiet luxury, reduziert, evokativ. Bildsprache: editorial, cinematisch, viel Negativraum, EIN leiser Rot-Moment, Film-Realismus, natürliches Licht, edle Materialien, Schweizer Ruhe.
@@ -71,12 +91,7 @@ async function director(briefText, env) {
     const parts = [];
     refs.forEach(f => { const b = fs.readFileSync(path.join(REFS, f)); parts.push({ text: `Referenz ${f}:` }); parts.push({ inline_data: { mime_type: mimeOf(b), data: b.toString('base64') } }); });
     parts.push({ text: `${refs.length ? 'Oben die Referenzbilder. ' : ''}Wunsch/Brief: "${briefText}". Liefere EINEN Anzeigen-Brief als JSON.` });
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.TEXT_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 1.0 } }),
-    });
-    if (!r.ok) throw new Error(`Gemini ${r.status}: ${(await r.text()).slice(0, 120)}`);
-    const j = await r.json();
+    const j = await callGemini(env, { systemInstruction: { parts: [{ text: SYSTEM }] }, contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMA, temperature: 1.0 } });
     return { d: JSON.parse(j.candidates[0].content.parts.find(p => p.text).text), refCount: refs.length };
   } catch (e) {
     console.warn('   ⚠️  Creative Director (Google) nicht verfügbar: ' + e.message.slice(0, 70) + ' — nutze Marken-Vorlage.');
@@ -91,12 +106,111 @@ function makeReel(adPng, outMp4, mode) {
   execFileSync('ffmpeg', ['-y', '-loop', '1', '-i', adPng, '-vf', f, '-t', '7', '-r', '30', '-c:v', 'libx264', '-preset', 'medium', '-movflags', '+faststart', outMp4], { stdio: 'ignore' });
 }
 
+// ───────────────────────── PRODUKT-MODUS ─────────────────────────
+// Echtes Produktfoto (z.B. SolisPanel) als Hero — KEINE KI-Produkt-Erfindung.
+const PRODUCT_SYSTEM = `Du bist Creative Director einer Weltklasse-Luxus-Markenagentur (30+ Jahre) für redtreat — premium Schweizer Longevity- & Wellness-Marke. Du textest eine PRODUKT-Anzeige für ein echtes Hardware-Produkt (z.B. Rotlicht/NIR-Panel). Es ist WELLNESS, niemals Medizin.
+Dir wird ein FOTO des echten Produkts gezeigt und ein Brief mit den Produkt-Eckdaten. Das Foto wird unverändert als Hero verwendet — DU erfindest kein Produkt, du schreibst nur die Marken-Copy + ordnest die Specs.
+Harte Regeln: Display-Copy klein mit Punkt ("dein licht."). KEINE Medizin-/Heilaussagen (heilen/Therapie/Diagnose/Krankheit/Symptom/schmerzfrei). Kein "Made in" (→ "Designed in Switzerland"). Nur EIN Rot. Established 2024. Erfinde KEINE Messwerte/Zahlen — nutze NUR Specs, die im Brief stehen. Wenn eine Spec nicht im Brief steht, lass sie weg.
+Copy: headline genau 2 Zeilen je 1–3 Wörter, klein, mit Punkt; kicker 2–3 Wörter; sub EIN eleganter Nutzen-Satz (≤12 Wörter, kein Heilversprechen); cta 1–2 Wörter; priceLine kurz in GROSSBUCHSTABEN (z.B. "JETZT AUF REDTREAT.CH" oder Aktionspreis falls im Brief).
+specs: GENAU 4 Einträge je { value, label }. value = die Kennzahl/das Merkmal kurz (z.B. "8", "180 mW/cm²", "IPX7", "1 Taste"); label = kurze Erklärung (z.B. "Wellenlängen", "max. Leistung", "wasserfest", "Bedienung"). Nimm die echten Werte aus dem Brief.`;
+
+const PRODUCT_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    kicker: { type: 'STRING' }, headline: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 2, maxItems: 2 },
+    sub: { type: 'STRING' }, cta: { type: 'STRING' }, priceLine: { type: 'STRING' },
+    specs: { type: 'ARRAY', minItems: 4, maxItems: 4, items: {
+      type: 'OBJECT', properties: { value: { type: 'STRING' }, label: { type: 'STRING' } }, required: ['value', 'label'] } },
+  },
+  required: ['kicker', 'headline', 'sub', 'cta', 'priceLine', 'specs'],
+};
+
+function fallbackProductBrief(briefText) {
+  return {
+    kicker: 'designed in switzerland',
+    headline: ['dein licht.', 'dein moment.'],
+    sub: 'Premium Wellness-Licht, designed in Switzerland.',
+    cta: 'mehr erfahren.', priceLine: 'JETZT AUF REDTREAT.CH',
+    specs: [
+      { value: 'Swiss', label: 'Design' }, { value: 'Premium', label: 'Materialien' },
+      { value: '1 Taste', label: 'Bedienung' }, { value: 'Wellness', label: 'für jeden Tag' },
+    ],
+  };
+}
+
+async function productDirector(briefText, env, productFile) {
+  try {
+    const key = env.GEMINI_API_KEY; if (!key) throw new Error('GEMINI_API_KEY fehlt');
+    const b = fs.readFileSync(productFile);
+    const parts = [
+      { text: 'Foto des echten Produkts (wird als Hero verwendet):' },
+      { inline_data: { mime_type: mimeOf(b), data: b.toString('base64') } },
+      { text: `Produkt-Brief / Eckdaten: "${briefText}". Liefere die Anzeigen-Copy + 4 Specs als JSON.` },
+    ];
+    const j = await callGemini(env, { systemInstruction: { parts: [{ text: PRODUCT_SYSTEM }] }, contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: PRODUCT_SCHEMA, temperature: 0.9 } });
+    return JSON.parse(j.candidates[0].content.parts.find(p => p.text).text);
+  } catch (e) {
+    console.warn('   ⚠️  Produkt-Director (Google) nicht verfügbar: ' + e.message.slice(0, 70) + ' — nutze Marken-Vorlage.');
+    return fallbackProductBrief(briefText);
+  }
+}
+
+async function productMain(briefText, want, makeReels, env) {
+  const fmt = brand.formats.story;
+  const imgs = fs.existsSync(REFS) ? fs.readdirSync(REFS).filter(f => /\.(png|jpe?g|webp)$/i.test(f)).sort() : [];
+  if (!imgs.length) { console.error('❌ Produkt-Modus: bitte lade ein echtes Produktfoto hoch.'); process.exit(5); }
+
+  // Erstes hochgeladenes Bild = das echte Produkt → unverändert als Hero.
+  const productPng = path.join(CAND, 'product.png');
+  fs.copyFileSync(path.join(REFS, imgs[0]), productPng);
+  console.log(`📦 Produkt-Modus · echtes Foto: ${imgs[0]}`);
+
+  console.log('🎬 Creative Director schreibt die Produkt-Copy …');
+  const d = await productDirector(briefText, env, productPng);
+  console.log(`   "${d.headline.join(' ')}"  —  ${d.kicker}`);
+
+  const briefBase = {
+    format: 'story', logo: 'assets/logo_tx.png', photo: 'studio/product.png',
+    kicker: d.kicker, headline: d.headline, sub: d.sub, specs: d.specs,
+    cta: d.cta, store: d.priceLine || 'JETZT AUF REDTREAT.CH',
+  };
+  const { hard } = lint(briefBase); if (hard.length) { console.error('❌ Brand:', hard.join('; ')); process.exit(2); }
+
+  const variants = ['glow', 'warm', 'mono', 'glow', 'warm', 'mono', 'glow', 'warm'];
+  console.log(`🎨 Baue ${want} Produkt-Anzeigen …`);
+  const ads = [];
+  for (let k = 0; k < want; k++) {
+    const brief = { ...briefBase, name: `ad_${k + 1}`, bgVariant: variants[k % variants.length] };
+    const outPng = path.join(OUT, `ad_${k + 1}.png`);
+    if (await renderPNG(buildProductHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
+  }
+  console.log('');
+
+  const reels = [];
+  if (makeReels && ads.length) {
+    console.log('🎞️  Baue Produkt-Reel (sanfter Zoom) …');
+    for (let i = 0; i < Math.min(2, ads.length); i++) {
+      const mp4 = path.join(REELS, `reel_${i + 1}.mp4`);
+      try { makeReel(ads[i], mp4, i % 2 ? 'pan' : 'zoom'); reels.push(mp4); process.stdout.write(`✓${i + 1} `); }
+      catch (e) { console.warn('   Reel-Fehler:', e.message); }
+    }
+    console.log('');
+  } else if (!makeReels) { console.log('🎞️  Reels übersprungen (deaktiviert).'); }
+
+  await closeBrowser();
+  console.log('\n✅ FERTIG:');
+  ads.forEach(a => console.log('   🖼️ ', a));
+  reels.forEach(r => console.log('   🎞️ ', r));
+}
+
 async function main() {
   const briefText = process.argv[2];
   const want = Math.max(1, Math.min(8, Number(process.argv[3]) || 8));
   const makeReels = process.argv[4] !== '0';
-  if (!briefText) { console.error('Usage: node studio.js "<brief>" [anzahl=8]'); process.exit(1); }
+  const mode = process.argv[5] || 'lifestyle';
+  if (!briefText) { console.error('Usage: node studio.js "<brief>" [anzahl=8] [reels=1] [mode=lifestyle|product]'); process.exit(1); }
   const env = loadEnv();
+  if (mode === 'product') return productMain(briefText, want, makeReels, env);
   const fmt = brand.formats.story;
 
   console.log('🎬 Creative Director liest Referenzen + Brief …');

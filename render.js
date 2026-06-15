@@ -118,6 +118,82 @@ function buildHTML(brief) {
 </body></html>`;
 }
 
+/**
+ * PRODUKT-MODUS: echtes Produktfoto als Hero + Spec-Karte (statt Lifestyle-Score).
+ * Für Hardware (z.B. SolisPanel) — die App erfindet KEIN Produkt, sie inszeniert das echte Foto.
+ * Erwartet zusätzlich: brief.specs = [{ value, label }], optional brief.bgVariant ('glow'|'warm'|'mono').
+ */
+function buildProductHTML(brief) {
+  const C = brand.colors, F = brand.fonts;
+  const fmt = brand.formats[brief.format || 'story'];
+  const product = fileUrl(path.join('input', brief.photo));
+  const logo = fileUrl(brief.logo || brand.logo.white);
+  const cabin = fileUrl(brand.fonts.files.Cabin);
+  const outfit = fileUrl(brand.fonts.files.Outfit);
+
+  const headline = (brief.headline || []).map((line, i) =>
+    i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)
+  ).join('<br>');
+
+  const specs = (brief.specs || []).slice(0, 4).map(s =>
+    `<div class="spec"><div class="sv">${esc(s.value || '')}</div><div class="sl">${esc(s.label || '')}</div></div>`
+  ).join('');
+
+  const bg = {
+    glow: `radial-gradient(78% 52% at 50% 40%, rgba(224,37,44,.17), transparent 62%), ${C.bgDark}`,
+    warm: `radial-gradient(90% 58% at 50% 38%, rgba(184,132,26,.15), transparent 60%), linear-gradient(180deg,#110d0c,${C.bgDark})`,
+    mono: `radial-gradient(80% 55% at 50% 38%, rgba(255,255,255,.07), transparent 60%), ${C.bgDark}`,
+  }[brief.bgVariant || 'glow'];
+
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+ @font-face{font-family:'Cabin';src:url('${cabin}') format('truetype');font-weight:100 900;font-style:normal}
+ @font-face{font-family:'Outfit';src:url('${outfit}') format('truetype');font-weight:100 900;font-style:normal}
+ html,body{margin:0;padding:0}*{box-sizing:border-box}
+ .ad{position:relative;width:${fmt.w}px;height:${fmt.h}px;overflow:hidden;background:${bg};font-family:${F.body}}
+ .mono{font-family:${F.body}}
+ .grain{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;
+   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+ .logo{position:absolute;top:60px;left:58px;width:236px;height:auto;filter:drop-shadow(0 3px 16px rgba(0,0,0,.5))}
+ .kick{position:absolute;top:300px;left:62px;display:flex;align-items:center;gap:16px;color:rgba(251,247,241,.85);font-size:22px;letter-spacing:6px;font-weight:600;text-transform:uppercase}
+ .kick .ln{width:54px;height:2px;background:${C.red};display:block}
+ .h1{position:absolute;top:330px;left:58px;right:110px;color:${C.cream};font-family:${F.display};font-size:104px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase;text-shadow:0 6px 30px rgba(0,0,0,.45)}
+ .h1 .r{color:${C.red}}
+ .spot{position:absolute;top:556px;left:50%;transform:translateX(-50%);width:1010px;height:680px;
+   background:radial-gradient(48% 44% at 50% 46%, rgba(255,255,255,.11), transparent 70%)}
+ .floor{position:absolute;top:1192px;left:50%;transform:translateX(-50%);width:660px;height:96px;
+   background:radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,.55), transparent 70%);filter:blur(9px)}
+ .hero{position:absolute;top:560px;left:50%;transform:translateX(-50%);width:902px;height:672px;object-fit:contain;
+   filter:drop-shadow(0 48px 66px rgba(0,0,0,.62))}
+ .pcard{position:absolute;left:78px;right:78px;top:1306px;border-radius:36px;padding:32px 40px 30px;
+   background:rgba(13,11,13,.42);border:1px solid rgba(255,255,255,.15);
+   backdrop-filter:blur(28px) saturate(125%);-webkit-backdrop-filter:blur(28px) saturate(125%);
+   box-shadow:0 54px 120px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.09)}
+ .psub{color:rgba(251,247,241,.74);font-size:27px;font-weight:500;line-height:1.32;margin-bottom:24px}
+ .specs{display:grid;grid-template-columns:1fr 1fr;gap:22px 30px}
+ .spec{border-left:2px solid rgba(224,37,44,.65);padding-left:18px}
+ .spec .sv{color:${C.cream};font-size:46px;font-weight:300;letter-spacing:-1px;line-height:1}
+ .spec .sl{color:rgba(251,247,241,.55);font-size:21px;letter-spacing:1px;margin-top:6px;font-weight:500}
+ .cta{position:absolute;bottom:122px;left:0;right:0;text-align:center}
+ .cta .pill{display:inline-flex;align-items:center;gap:14px;background:${C.red};color:#fff;font-size:31px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:25px 52px;border-radius:100px;box-shadow:0 24px 54px rgba(224,37,44,.5)}
+ .store{position:absolute;bottom:76px;left:0;right:0;text-align:center;color:rgba(251,247,241,.62);font-size:21px;letter-spacing:3px;font-weight:500}
+</style></head><body>
+ <div class="ad">
+  <img class="logo" src="${logo}">
+  ${brief.kicker ? `<div class="kick"><span class="ln"></span>${esc(brief.kicker)}</div>` : ''}
+  <div class="h1">${headline}</div>
+  <div class="spot"></div><div class="floor"></div>
+  <img class="hero" src="${product}">
+  <div class="pcard">
+    ${brief.sub ? `<div class="psub">${esc(brief.sub)}</div>` : ''}
+    <div class="specs">${specs}</div>
+  </div>
+  ${brief.cta ? `<div class="cta"><span class="pill">${esc(brief.cta)} ◆</span></div>` : ''}
+  ${brief.store ? `<div class="store mono">${esc(brief.store)}</div>` : ''}
+  <div class="grain"></div>
+ </div>
+</body></html>`;
+}
+
 // HTML → PNG via Playwright/Chromium (plattform-unabhängig, zuverlässig)
 async function renderPNG(html, outPng, fmt) {
   const tmpHtml = path.join(ROOT, 'output', '_tmp_' + path.basename(outPng) + '.html');
@@ -163,4 +239,4 @@ async function main() {
   else { console.error('❌ Render fehlgeschlagen.'); process.exit(3); }
 }
 if (require.main === module) main().catch(e => { console.error('❌', e.message); process.exit(1); });
-module.exports = { buildHTML, renderPNG };
+module.exports = { buildHTML, buildProductHTML, renderPNG };

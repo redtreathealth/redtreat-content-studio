@@ -10,6 +10,7 @@ function collectText(brief) {
   push(brief.kicker); push(brief.sub); push(brief.cta); push(brief.store); push(brief.badge);
   (brief.headline || []).forEach(push);
   (brief.stats || []).forEach(s => { push(s.k); });
+  (brief.specs || []).forEach(s => { push(s.value); push(s.label); });
   return parts;
 }
 

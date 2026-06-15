@@ -24,11 +24,12 @@ const upload = multer({ storage: multer.diskStorage({
 
 const jobs = {};
 function stageFrom(line, j) {
-  if (line.includes('Creative Director')) j.stage = '🎬 Creative Director liest deine Bilder & den Brief …';
+  if (line.includes('Produkt-Modus')) j.stage = '📦 Produkt-Modus · dein echtes Foto wird verwendet …';
+  else if (line.includes('Creative Director')) j.stage = '🎬 Creative Director schreibt die Copy …';
   else if (line.includes('Generiere')) j.stage = '🖼️ Foto-Varianten werden generiert …';
   else if (line.includes('QC')) j.stage = '🔎 Qualitätskontrolle (Anatomie) …';
   else if (line.includes('Baue ') && line.includes('Anzeigen')) j.stage = '🎨 Anzeigen werden gebaut …';
-  else if (line.includes('Explainer-Reels')) j.stage = '🎞️ Reels werden animiert (dauert kurz) …';
+  else if (line.includes('Reel')) j.stage = '🎞️ Reels werden gebaut …';
 }
 
 app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.array('refs', 8),
@@ -39,14 +40,17 @@ app.post('/generate', (req, res, next) => { clearDir(REFS); next(); }, upload.ar
     clearDir(ADS); clearDir(REELS, /\.mp4$/); clearDir(path.join(ROOT, 'input', 'studio'));
 
     const reelsFlag = (req.body.reels === '1' || req.body.reels === 'on') ? '1' : '0';
+    const mode = (req.body.mode === 'product') ? 'product' : 'lifestyle';
     const id = 'job_' + Date.now();
     const j = jobs[id] = { stage: '⏳ Startet …', done: false, error: null, log: '' };
-    const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count), reelsFlag], { cwd: ROOT });
+    const child = spawn(process.execPath, [path.join(ROOT, 'studio.js'), brief, String(count), reelsFlag, mode], { cwd: ROOT });
     child.stdout.on('data', d => { j.log += d; String(d).split('\n').forEach(l => l.trim() && stageFrom(l, j)); });
     child.stderr.on('data', d => { j.log += d; });
     child.on('close', () => {
       const adsN = fs.existsSync(ADS) ? fs.readdirSync(ADS).filter(f => /\.png$/.test(f)).length : 0;
-      if (!adsN) j.error = 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
+      if (!adsN) j.error = mode === 'product'
+        ? 'Keine Anzeige erzeugt – hast du ein Produktfoto hochgeladen?'
+        : 'Keine Anzeigen erzeugt – prüfe Brief/Keys.';
       j.stage = '✅ Fertig'; j.done = true;
     });
     res.json({ id });
@@ -90,6 +94,9 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
  select{background:#0e0e12;border:1px solid var(--line);color:var(--cream);border-radius:10px;padding:12px 16px;font-family:inherit;font-size:16px}
  button{background:var(--red);color:#fff;border:0;border-radius:100px;padding:18px 40px;font-family:'Outfit';font-weight:600;font-size:18px;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
  button:disabled{opacity:.5;cursor:default}
+ .chk{text-transform:none;letter-spacing:0;color:var(--cream);font-size:15px;display:flex;align-items:center;gap:8px;cursor:pointer;margin:0}
+ .phint{display:none;color:#9a9aa2;font-size:14.5px;line-height:1.5;margin-top:14px;padding:14px 16px;background:#0e0e12;border:1px solid var(--line);border-radius:12px}
+ .phint b{color:var(--cream)}
  .status{margin-top:18px;font-size:17px;color:var(--cream);display:none}
  .spin{display:inline-block;width:16px;height:16px;border:2px solid #555;border-top-color:var(--red);border-radius:50%;animation:s 1s linear infinite;vertical-align:-2px;margin-right:8px}
  @keyframes s{to{transform:rotate(360deg)}}
@@ -117,10 +124,12 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
    <label>2 · Was brauchst du? (Brief)</label>
    <textarea id="brief" placeholder="z.B. Eine ruhige Anzeige zum Thema Pilates am Morgen, im Stil der hochgeladenen Bilder, edel und reduziert."></textarea>
    <div class="row" style="margin-top:18px">
+     <div><label>Modus</label><label class="chk"><input type="checkbox" id="product"> 📦 Produktfoto-Modus</label></div>
      <div><label>Anzahl Anzeigen</label><select id="count"><option>8</option><option>6</option><option>4</option><option>3</option></select></div>
-     <div><label>Reels</label><label style="text-transform:none;letter-spacing:0;color:var(--cream);font-size:15px;display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="reels"> auch 2 Reels <span style="color:#9a9aa2">(langsam auf Gratis)</span></label></div>
+     <div><label>Reels</label><label class="chk"><input type="checkbox" id="reels"> auch 2 Reels <span style="color:#9a9aa2">(langsam auf Gratis)</span></label></div>
      <button id="go">Generieren</button>
    </div>
+   <div class="phint" id="phint">📦 <b>Produktfoto-Modus:</b> dein <b>erstes hochgeladenes Bild</b> wird als echtes Produkt verwendet — es wird <b>kein</b> Produkt von der KI erfunden. Schreib die echten Eckdaten in den Brief, z.B.: „SolisPanel NextGen, 8 Wellenlängen (415–850 nm), max 180 mW/cm², wasserfest, 1-Tasten-Bedienung, Wellness".</div>
    <div class="status" id="status"></div>
  </div>
 
@@ -140,13 +149,17 @@ const PAGE = `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><meta n
  drop.addEventListener('drop',ev=>{picked=[...ev.dataTransfer.files].filter(f=>f.type.startsWith('image'));render();});
 
  const go=document.getElementById('go'),status=document.getElementById('status'),results=document.getElementById('results');
+ const product=document.getElementById('product'),phint=document.getElementById('phint');
+ product.onchange=()=>{phint.style.display=product.checked?'block':'none';};
  go.onclick=async()=>{
    const brief=document.getElementById('brief').value.trim();
    if(!brief){alert('Bitte einen Brief schreiben.');return;}
+   if(product.checked&&!picked.length){alert('Produktfoto-Modus: bitte lade zuerst dein echtes Produktfoto hoch.');return;}
    go.disabled=true;results.style.display='none';status.style.display='block';
    status.innerHTML='<span class="spin"></span> Startet …';
    const fd=new FormData();fd.append('brief',brief);fd.append('count',document.getElementById('count').value);
    fd.append('reels',document.getElementById('reels').checked?'1':'0');
+   fd.append('mode',product.checked?'product':'lifestyle');
    picked.forEach(f=>fd.append('refs',f));
    let id;
    try{const r=await fetch('/generate',{method:'POST',body:fd});const j=await r.json();if(j.error)throw new Error(j.error);id=j.id;}
