@@ -13,7 +13,7 @@ const { execFileSync } = require('child_process');
 const brand = require('./brand.config');
 const { lint } = require('./brand-lint');
 const { generate, qcRank } = require('./generate');
-const { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, renderPNG } = require('./render');
+const { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, buildEditorialHTML, renderPNG } = require('./render');
 const { renderReel } = require('./reelmaker');
 const { closeBrowser } = require('./browser');
 const { cutoutBackground } = require('./cutout');
@@ -237,12 +237,12 @@ async function studioMain(briefText, want, makeReels, env) {
   const { hard } = lint(briefBase); if (hard.length) { console.error('❌ Brand:', hard.join('; ')); process.exit(2); }
 
   const variants = ['glow', 'warm', 'mono', 'glow', 'warm', 'mono', 'glow', 'warm'];
-  console.log(`🎨 Baue ${want} Clean-Studio-Anzeigen …`);
+  console.log(`🎨 Baue ${want} Editorial-Anzeigen …`);
   const ads = [];
   for (let k = 0; k < want; k++) {
     const brief = { ...briefBase, name: `ad_${k + 1}`, bgVariant: variants[k % variants.length] };
     const outPng = path.join(OUT, `ad_${k + 1}.png`);
-    if (await renderPNG(buildStudioHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
+    if (await renderPNG(buildEditorialHTML(brief), outPng, fmt)) { ads.push(outPng); process.stdout.write(`✓${k + 1} `); }
   }
   console.log('');
 

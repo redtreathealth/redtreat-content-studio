@@ -378,6 +378,66 @@ function buildStudioHTML(brief) {
 </div></body></html>`;
 }
 
+/**
+ * EDITORIAL-DESIGN (neu, durchgängig) — Swiss/editorial Anmutung:
+ * Masthead (Wortmarke + Land) · Hairline-Raster · großer Cabin-Titel · Produkt mit rotem Glow ·
+ * präzise Spec-Tabelle (Datenblatt) · Footer mit CTA. Hell (Creme), premium, reduziert.
+ * brief.photo = freigestellter Cutout. brief.bgVariant glow|warm|mono steuert nur die Glow-Farbe.
+ */
+function buildEditorialHTML(brief) {
+  const C = brand.colors, F = brand.fonts;
+  const fmt = brand.formats[brief.format || 'story'];
+  const cut = fileUrl(path.join('input', brief.photo));
+  const cabin = fileUrl(brand.fonts.files.Cabin);
+  const outfit = fileUrl(brand.fonts.files.Outfit);
+  const headline = (brief.headline || []).map((line, i) =>
+    i === (brief.headline.length - 1) ? `<span class="r">${esc(line)}</span>` : esc(line)).join('<br>');
+  const rows = (brief.specs || []).slice(0, 4).map(s =>
+    `<div class="srow"><span class="l">${esc(s.label || '')}</span><span class="v">${esc(s.value || '')}</span></div>`).join('');
+  const halo = { glow: 'rgba(224,37,44,.26)', warm: 'rgba(255,118,58,.26)', mono: 'rgba(224,37,44,.13)' }[brief.bgVariant || 'glow'];
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+ @font-face{font-family:'Cabin';src:url('${cabin}') format('truetype');font-weight:100 900;font-style:normal}
+ @font-face{font-family:'Outfit';src:url('${outfit}') format('truetype');font-weight:100 900;font-style:normal}
+ html,body{margin:0;padding:0}*{box-sizing:border-box}
+ .ad{position:relative;width:${fmt.w}px;height:${fmt.h}px;overflow:hidden;font-family:${F.body};
+   background:radial-gradient(80% 46% at 50% 40%, #FFFFFF, ${C.cream} 64%, #EEE6DA 100%)}
+ .grain{position:absolute;inset:0;opacity:.04;mix-blend-mode:multiply;
+   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+ .mast{position:absolute;top:74px;left:72px;right:72px;display:flex;justify-content:space-between;align-items:baseline}
+ .wm{font-family:${F.display};font-weight:700;font-size:42px;letter-spacing:-2px}
+ .wm .r{color:${C.red}} .wm .t{color:${C.ink}}
+ .meta{color:#8a8076;font-size:20px;letter-spacing:3px;text-transform:uppercase;font-weight:600}
+ .rule{position:absolute;left:72px;right:72px;height:1px;background:rgba(29,29,27,.17)}
+ .rTop{top:150px}
+ .kick{position:absolute;top:200px;left:72px;display:flex;align-items:center;gap:14px;color:#8a8076;font-size:22px;letter-spacing:4px;text-transform:uppercase;font-weight:600}
+ .kick .sq{width:13px;height:13px;background:${C.red};display:block}
+ .h1{position:absolute;top:242px;left:70px;right:300px;color:${C.ink};font-family:${F.display};font-size:100px;line-height:.92;font-weight:700;letter-spacing:-3px;text-transform:lowercase}
+ .h1 .r{color:${C.red}}
+ .sub{position:absolute;top:474px;left:72px;right:320px;color:#6b6258;font-size:26px;line-height:1.4;font-weight:400}
+ .halo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1120px;height:1010px;background:radial-gradient(circle at 50% 48%, ${halo}, transparent 62%);filter:blur(8px)}
+ .floor{position:absolute;left:50%;bottom:558px;transform:translateX(-50%);width:520px;height:74px;background:radial-gradient(50% 50% at 50% 50%, rgba(70,38,26,.18), transparent 70%);filter:blur(10px)}
+ .hero{position:absolute;left:50%;top:566px;transform:translateX(-50%);height:798px;object-fit:contain;filter:drop-shadow(0 30px 40px rgba(80,44,32,.24))}
+ .specs{position:absolute;top:1410px;left:72px;right:72px}
+ .srow{display:flex;justify-content:space-between;align-items:baseline;padding:18px 2px;border-top:1px solid rgba(29,29,27,.16)}
+ .srow .l{color:#8a8076;font-size:21px;letter-spacing:2px;text-transform:uppercase;font-weight:600}
+ .srow .v{color:${C.ink};font-family:${F.display};font-size:38px;font-weight:600;letter-spacing:-.5px}
+ .foot{position:absolute;left:72px;right:72px;bottom:92px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(29,29,27,.17);padding-top:30px}
+ .cta{display:inline-flex;align-items:center;gap:13px;background:${C.red};color:#fff;font-size:27px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;padding:20px 40px;border-radius:100px}
+ .site{color:#8a8076;font-size:22px;letter-spacing:2px;text-transform:uppercase;font-weight:600}
+</style></head><body><div class="ad">
+ <div class="halo"></div>
+ <div class="mast"><div class="wm"><span class="r">red</span><span class="t">treat</span></div><div class="meta">Switzerland · Est. 2024</div></div>
+ <div class="rule rTop"></div>
+ ${brief.kicker ? `<div class="kick"><span class="sq"></span>${esc(brief.kicker)}</div>` : ''}
+ <div class="h1">${headline}</div>
+ ${brief.sub ? `<div class="sub">${esc(brief.sub)}</div>` : ''}
+ <div class="floor"></div><img class="hero" src="${cut}">
+ <div class="specs">${rows}</div>
+ <div class="foot">${brief.cta ? `<span class="cta">${esc(brief.cta)} →</span>` : '<span></span>'}<span class="site">redtreat.ch</span></div>
+ <div class="grain"></div>
+</div></body></html>`;
+}
+
 // HTML → PNG via Playwright/Chromium (plattform-unabhängig, zuverlässig)
 async function renderPNG(html, outPng, fmt) {
   const tmpHtml = path.join(ROOT, 'output', '_tmp_' + path.basename(outPng) + '.html');
@@ -423,4 +483,4 @@ async function main() {
   else { console.error('❌ Render fehlgeschlagen.'); process.exit(3); }
 }
 if (require.main === module) main().catch(e => { console.error('❌', e.message); process.exit(1); });
-module.exports = { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, renderPNG };
+module.exports = { buildHTML, buildProductHTML, buildHybridHTML, buildStudioHTML, buildEditorialHTML, renderPNG };
